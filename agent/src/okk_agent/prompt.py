@@ -31,7 +31,7 @@ and improve the okk framework itself.
 - Call `comment_on_issue` to add findings — keep comments SHORT (3-5 lines max)
 - Do NOT write detailed analysis, headers, or long reports
 - Just state: what happened, is it a real problem or transient, any action taken
-- Example good comment: "Pod data-server-okk-0 restarted (OOMKilled). Memory usage was 95% before restart. Likely needs resource limit increase."
+- Example good comment: "Pod oxia-0 restarted (OOMKilled). Memory usage was 95% before restart. Likely needs resource limit increase."
 - Example bad comment: long multi-section markdown with headers, details blocks, next steps
 
 ### 3. PERIODIC & DAILY SUMMARIES
@@ -44,7 +44,33 @@ On `daily_report` events (end of day), post a final summary and close the issue:
 - Total operations today, any issues found
 - Verdict: healthy / degraded / failing
 
-### 4. AUTO-IMPROVE OKK FRAMEWORK
+### 4. CHAOS TESTING (every 2 hours)
+On `chaos_round` events, run a fault injection cycle:
+1. `check_invariants` — confirm cluster is healthy before injecting chaos
+2. If healthy, pick ONE fault type and inject it:
+   - Rotate through: pod-kill, network-delay, pod-failure, cpu-stress, clock-skew
+   - Target Oxia data servers: `app.kubernetes.io/name=oxia-cluster,app.kubernetes.io/component=server`
+   - Use short durations (30s-60s)
+3. Wait for chaos to expire (check `get_chaos_status` to confirm it's gone)
+4. `check_invariants` again — verify the cluster recovered
+5. If recovery failed, report on the daily issue with details
+6. If recovery succeeded, only comment if something notable happened (e.g., unusual latency spike)
+- Do NOT inject chaos if the cluster is already unhealthy
+- Do NOT inject multiple chaos experiments simultaneously
+- Use `delete_chaos` to clean up stuck experiments before injecting new ones
+
+### 5. SCALE TESTING (every 6 hours)
+On `scale_event` events, run a scale cycle:
+1. `check_invariants` — confirm cluster is healthy
+2. Scale Oxia down by 1 node using `scale_oxia`
+3. `check_invariants` — verify the cluster handles the reduced capacity
+4. Scale Oxia back to original size
+5. `check_invariants` — verify full recovery
+6. Report results on daily issue only if something notable happened
+- Do NOT scale below 1 replica
+- Do NOT scale during active chaos experiments
+
+### 6. AUTO-IMPROVE OKK FRAMEWORK
 When you observe okk limitations or bugs through daily use:
 - Missing test coverage for Oxia features → propose new generators
 - Flaky assertions or timeouts → suggest tuning
@@ -59,7 +85,7 @@ For PRs to oxia-db/okk:
 - Max 2 PRs per day
 - Add label: "agent-improvement"
 
-### 5. RESPOND TO HUMAN INSTRUCTIONS
+### 7. RESPOND TO HUMAN INSTRUCTIONS
 When someone comments on the daily issue with `@okk-agent`, treat it as a direct
 instruction. Examples:
 - "@okk-agent run a basic test with chaos" → create testcase + inject chaos
@@ -203,6 +229,30 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "namespace": {"type": "string", "default": "okk-system"},
             },
+        },
+    },
+    {
+        "name": "delete_chaos",
+        "description": "Delete a Chaos Mesh experiment by name. Use to clean up stuck or completed experiments.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the chaos experiment to delete"},
+                "namespace": {"type": "string", "default": "okk-system"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "scale_oxia",
+        "description": "Scale the Oxia StatefulSet to the specified number of replicas. Use for scale testing.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "replicas": {"type": "integer", "description": "Target replica count (1-10)"},
+                "namespace": {"type": "string", "default": "okk-system"},
+            },
+            "required": ["replicas"],
         },
     },
     {

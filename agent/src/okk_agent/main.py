@@ -110,6 +110,12 @@ class OkkAgent:
         # Periodic summary (every 4 hours) — always posts to daily issue
         self.cron.add_interval_job("periodic_summary", self.cron._trigger_periodic_summary, hours=4)
 
+        # Chaos round (every 2 hours) — inject a fault and verify recovery
+        self.cron.add_interval_job("chaos_round", self.cron._trigger_chaos_round, hours=2)
+
+        # Scale event (every 6 hours) — scale down/up and verify
+        self.cron.add_interval_job("scale_event", self.cron._trigger_scale_event, hours=6)
+
         # Start GitHub comment polling (every 2 minutes)
         if self.github_poller:
             self.cron.add_interval_job("github_poll", self.github_poller.poll, minutes=2)

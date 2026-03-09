@@ -54,6 +54,22 @@ class CronScheduler:
             details={},
         ))
 
+    def _trigger_chaos_round(self):
+        self.on_event(Event(
+            type="chaos_round",
+            summary="Time for a chaos injection round. Pick a fault type, inject it against the Oxia cluster, "
+                    "wait for it to expire, then check invariants to verify recovery.",
+            details={},
+        ))
+
+    def _trigger_scale_event(self):
+        self.on_event(Event(
+            type="scale_event",
+            summary="Time for a scale test. Scale the Oxia cluster down by 1 node, verify invariants hold, "
+                    "then scale back up and verify recovery.",
+            details={},
+        ))
+
     def add_interval_job(self, job_id: str, func, **kwargs):
         """Add an interval-based job (e.g., polling every N minutes)."""
         self._scheduler.add_job(func, trigger="interval", id=job_id, **kwargs)

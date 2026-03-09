@@ -109,7 +109,7 @@ class Agent:
     def _triage_event(self, event: Event) -> bool:
         """Use local model to decide if event needs the real AI. Returns True if important."""
         # Always escalate these
-        if event.type in ("github_comment", "daily_report", "startup", "health_check", "periodic_summary"):
+        if event.type in ("github_comment", "daily_report", "startup", "health_check", "periodic_summary", "chaos_round", "scale_event"):
             return True
 
         if not self._triage_enabled:
@@ -168,7 +168,7 @@ class Agent:
         """Check if this event type was processed recently."""
         now = time.time()
         # These event types always go through (no dedup)
-        if event.type in ("github_comment", "daily_report", "startup", "health_check", "periodic_summary"):
+        if event.type in ("github_comment", "daily_report", "startup", "health_check", "periodic_summary", "chaos_round", "scale_event"):
             return False
 
         key = f"{event.type}:{event.summary[:80]}"
@@ -372,6 +372,10 @@ class Agent:
                 return self.act.delete_testcase(**input)
             elif name == "inject_chaos":
                 return self.act.inject_chaos(**input)
+            elif name == "delete_chaos":
+                return self.act.delete_chaos(**input)
+            elif name == "scale_oxia":
+                return self.act.scale_oxia(**input)
             # Report tools
             elif name == "get_or_create_daily_issue":
                 if self.report:

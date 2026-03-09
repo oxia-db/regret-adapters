@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 import logging
 import threading
+import time
 from typing import Callable
 
 from kubernetes import client as k8s_client, watch
@@ -29,6 +29,7 @@ class K8sWatcher:
         self.on_event = on_event
         self._threads: list[threading.Thread] = []
         self._stop = threading.Event()
+        self._start_time = time.time()
 
     def start(self):
         """Start watching for K8s events in background threads."""
@@ -48,6 +49,9 @@ class K8sWatcher:
     def _watch_pods(self):
         """Watch for pod restarts and failures in the okk namespace."""
         w = watch.Watch()
+        # Track restart counts seen at startup to avoid re-reporting old restarts
+        seen_restarts: dict[str, int] = {}
+        initial_list_done = False
         while not self._stop.is_set():
             try:
                 for event in w.stream(
@@ -62,10 +66,29 @@ class K8sWatcher:
                     pod = event["object"]
                     pod_name = pod.metadata.name
 
-                    # Detect pod restarts
+                    # On initial list, record existing restart counts
+                    if not initial_list_done and event_type in ("ADDED",):
+                        if pod.status.container_statuses:
+                            for cs in pod.status.container_statuses:
+                                key = f"{pod_name}/{cs.name}"
+                                seen_restarts[key] = cs.restart_count
+                        continue
+
+                    if event_type == "ADDED" and not initial_list_done:
+                        continue
+
+                    if event_type == "BOOKMARK":
+                        initial_list_done = True
+                        continue
+
+                    # Detect pod restarts (only new restarts)
                     if event_type == "MODIFIED" and pod.status.container_statuses:
+                        initial_list_done = True  # Any MODIFIED means we're past initial list
                         for cs in pod.status.container_statuses:
-                            if cs.restart_count > 0 and cs.last_state and cs.last_state.terminated:
+                            key = f"{pod_name}/{cs.name}"
+                            prev_count = seen_restarts.get(key, 0)
+                            seen_restarts[key] = cs.restart_count
+                            if cs.restart_count > prev_count and cs.last_state and cs.last_state.terminated:
                                 reason = cs.last_state.terminated.reason or "Unknown"
                                 self.on_event(Event(
                                     type="pod_restart",
@@ -110,6 +133,16 @@ class K8sWatcher:
                         break
 
                     k8s_event = event["object"]
+                    # Skip stale events from before the agent started
+                    if k8s_event.last_timestamp:
+                        event_ts = k8s_event.last_timestamp.timestamp()
+                        if event_ts < self._start_time:
+                            continue
+                    elif k8s_event.event_time:
+                        event_ts = k8s_event.event_time.timestamp()
+                        if event_ts < self._start_time:
+                            continue
+
                     if k8s_event.type == "Warning":
                         self.on_event(Event(
                             type="k8s_warning",

@@ -99,6 +99,8 @@ def create_webhook_app(on_event: Callable[[Event], None], webhook_secret: str | 
             "health_check": "Manual health check: verify testcase status and check Oxia logs for anomalies.",
             "periodic_summary": "Manual periodic summary. Check metrics, testcase status, and post a brief update on the daily issue.",
             "daily_report": "Manual daily report trigger.",
+            "chaos_round": "Manual chaos round: inject a fault and verify recovery.",
+            "scale_event": "Manual scale test: scale down, verify, scale back up.",
         }
         if event_type not in summaries:
             return {"error": f"Unknown event type: {event_type}"}

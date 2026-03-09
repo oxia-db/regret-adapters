@@ -17,8 +17,8 @@ rules:
     resources: ["pods", "pods/log", "events", "configmaps", "services"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets"]
-    verbs: ["get", "list", "watch"]
+    resources: ["deployments", "statefulsets", "statefulsets/scale"]
+    verbs: ["get", "list", "watch", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

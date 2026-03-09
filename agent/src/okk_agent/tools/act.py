@@ -16,9 +16,11 @@ CHAOS_VERSION = "v1alpha1"
 
 
 class ActTools:
-    def __init__(self, config: Config, k8s_custom: k8s_client.CustomObjectsApi):
+    def __init__(self, config: Config, k8s_custom: k8s_client.CustomObjectsApi,
+                 k8s_apps: k8s_client.AppsV1Api | None = None):
         self.config = config
         self.k8s_custom = k8s_custom
+        self.k8s_apps = k8s_apps or k8s_client.AppsV1Api()
         self._coordinator_url = config.coordinator_url.rstrip("/")
 
     def create_testcase(
@@ -174,3 +176,58 @@ class ActTools:
                 },
             }
         return {"error": f"Unknown chaos type: {type}"}
+
+    def delete_chaos(self, name: str, namespace: str = "okk-system") -> str:
+        """Delete a chaos experiment by name."""
+        # Try each chaos type
+        for plural, kind in [
+            ("podchaos", "PodChaos"),
+            ("networkchaos", "NetworkChaos"),
+            ("stresschaos", "StressChaos"),
+            ("timechaos", "TimeChaos"),
+        ]:
+            try:
+                self.k8s_custom.delete_namespaced_custom_object(
+                    group=CHAOS_GROUP, version=CHAOS_VERSION,
+                    namespace=namespace, plural=plural, name=name,
+                )
+                return json.dumps({"status": "deleted", "name": name, "kind": kind})
+            except k8s_client.ApiException as e:
+                if e.status != 404:
+                    return json.dumps({"error": f"Failed to delete {name}: {e.reason}"})
+        return json.dumps({"error": f"Chaos experiment '{name}' not found"})
+
+    def scale_oxia(self, replicas: int, namespace: str = "okk-system") -> str:
+        """Scale the Oxia StatefulSet to the specified number of replicas."""
+        if replicas < 1 or replicas > 10:
+            return json.dumps({"error": "Replicas must be between 1 and 10"})
+
+        try:
+            # Find the Oxia StatefulSet
+            sts_list = self.k8s_apps.list_namespaced_stateful_set(
+                namespace=namespace, label_selector="app.kubernetes.io/name=oxia-cluster",
+            )
+            if not sts_list.items:
+                # Fallback: try by name
+                sts_list = self.k8s_apps.list_namespaced_stateful_set(namespace=namespace)
+                sts_list.items = [s for s in sts_list.items if "oxia" in s.metadata.name]
+
+            if not sts_list.items:
+                return json.dumps({"error": "No Oxia StatefulSet found"})
+
+            sts = sts_list.items[0]
+            old_replicas = sts.spec.replicas
+            sts_name = sts.metadata.name
+
+            self.k8s_apps.patch_namespaced_stateful_set_scale(
+                name=sts_name, namespace=namespace,
+                body={"spec": {"replicas": replicas}},
+            )
+            return json.dumps({
+                "status": "scaled",
+                "statefulset": sts_name,
+                "old_replicas": old_replicas,
+                "new_replicas": replicas,
+            })
+        except k8s_client.ApiException as e:
+            return json.dumps({"error": f"Failed to scale: {e.reason}"})
