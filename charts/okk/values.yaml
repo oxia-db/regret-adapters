@@ -1,0 +1,43 @@
+coordinator:
+  image: mattison/okk-coordinator:latest
+  replicas: 1
+  port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+agent:
+  enabled: true
+  image: okk-agent:local
+  replicas: 1
+  port: 8080
+  env:
+    OKK_NAMESPACE: okk-system
+    IN_CLUSTER: "true"
+    PROMETHEUS_URL: "http://prometheus.monitoring.svc.cluster.local:9090"
+    DAILY_REPORT_HOUR: "0"
+    OXIA_IMAGE: "oxia/oxia:latest"
+    OKK_WORKER_IMAGE: "oxia/okk-jvm-worker:main"
+    COORDINATOR_URL: "http://okk-coordinator:8080"
+  secrets:
+    ANTHROPIC_API_KEY: "replace-me"
+    GITHUB_TOKEN: "replace-me"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+worker:
+  image: oxia/okk-jvm-worker:main
+  port: 8081
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
