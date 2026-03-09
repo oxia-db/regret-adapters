@@ -1,9 +1,0 @@
-apiVersion: core.oxia.io/v1
-kind: OxiaCluster
-metadata:
-  labels:
-    app.kubernetes.io/name: manager
-    app.kubernetes.io/managed-by: kustomize
-  name: oxiacluster-sample
-spec:
-  # TODO(user): Add fields here

@@ -1,0 +1,34 @@
+global:
+  namespace: okk-system
+
+okk-manager:
+  image: "mattison/okk-manager"
+  replicas: 1
+
+chaos-mesh:
+  controllerManager:
+    replicaCount: 1
+  dashboard:
+    securityMode: false
+
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      serviceMonitorSelector: {}
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+  grafana:
+    adminPassword: "admin"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  alertmanager:
+    alertmanagerSpec:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi

@@ -1,21 +1,25 @@
 IMAGE_REPO =  mattison
 
 
-.PHONY: build-manager
-build-manager:
-	$(MAKE) -C manager docker-build IMG=$(IMAGE_REPO)/okk-manager:latest
+.PHONY: build-coordinator
+build-coordinator:
+	cd coordinator && go build -o bin/okk-coordinator ./cmd/main.go
 
-.PHONY: proto-manager
-proto-manager:
+.PHONY: build-coordinator-image
+build-coordinator-image:
+	cd coordinator && docker build . -t $(IMAGE_REPO)/okk-coordinator:latest
+
+.PHONY: proto
+proto:
 	cd proto && \
 	protoc \
-		--go_out=../manager/internal/proto \
+		--go_out=../internal/proto \
 		--go_opt paths=source_relative \
 		--plugin protoc-gen-go="${GOBIN}/protoc-gen-go" \
-		--go-grpc_out=../manager/internal/proto \
+		--go-grpc_out=../internal/proto \
 		--go-grpc_opt paths=source_relative \
 		--plugin protoc-gen-go-grpc="${GOBIN}/protoc-gen-go-grpc" \
-		--go-vtproto_out=../manager/internal/proto \
+		--go-vtproto_out=../internal/proto \
 		--go-vtproto_opt paths=source_relative \
 		--plugin protoc-gen-go-vtproto="${GOBIN}/protoc-gen-go-vtproto" \
 		--go-vtproto_opt=features=marshal+unmarshal+unmarshal_unsafe+size+pool+equal+clone \

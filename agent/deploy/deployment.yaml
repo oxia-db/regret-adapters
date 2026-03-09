@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: okk-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: okk-agent
+  namespace: okk-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: okk-agent
+rules:
+  # okk CRDs (TestCase, OxiaCluster)
+  - apiGroups: ["core.oxia.io"]
+    resources: ["testcases", "oxiaclusters", "testcases/status", "oxiaclusters/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Chaos Mesh CRDs
+  - apiGroups: ["chaos-mesh.org"]
+    resources: ["podchaos", "networkchaos", "stresschaos", "timechaos"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Pod logs and status
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events", "configmaps", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # Deployments (for okk workers)
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: okk-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: okk-agent
+subjects:
+  - kind: ServiceAccount
+    name: okk-agent
+    namespace: okk-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: okk-agent-secrets
+  namespace: okk-system
+type: Opaque
+stringData:
+  ANTHROPIC_API_KEY: "replace-me"
+  GITHUB_TOKEN: "replace-me"
+  # GITHUB_WEBHOOK_SECRET: "replace-me"  # optional
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: okk-agent
+  namespace: okk-system
+  labels:
+    app: okk-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: okk-agent
+  template:
+    metadata:
+      labels:
+        app: okk-agent
+    spec:
+      serviceAccountName: okk-agent
+      containers:
+        - name: okk-agent
+          image: oxia/okk-agent:latest
+          ports:
+            - containerPort: 8080
+              name: webhook
+          envFrom:
+            - secretRef:
+                name: okk-agent-secrets
+          env:
+            - name: OKK_NAMESPACE
+              value: "okk-system"
+            - name: IN_CLUSTER
+              value: "true"
+            - name: PROMETHEUS_URL
+              value: "http://prometheus.monitoring.svc.cluster.local:9090"
+            - name: DAILY_REPORT_HOUR
+              value: "0"
+            - name: OXIA_IMAGE
+              value: "oxia/oxia:latest"
+            - name: OKK_WORKER_IMAGE
+              value: "oxia/okk-jvm-worker:main"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: okk-agent
+  namespace: okk-system
+spec:
+  selector:
+    app: okk-agent
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: webhook

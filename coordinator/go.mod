@@ -34,4 +34,4 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 )
 
-replace github.com/oxia-io/okk => ../manager
+replace github.com/oxia-io/okk => ..

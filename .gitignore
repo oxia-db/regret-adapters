@@ -32,3 +32,10 @@ go.work.sum
 .vscode/
 
 *.tgz
+
+# Python
+__pycache__/
+*.pyc
+
+# Build output
+**/bin/
