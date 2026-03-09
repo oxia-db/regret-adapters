@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
-    # AI provider: "anthropic" or "copilot"
+    # AI provider: "anthropic", "copilot", or "ollama"
     ai_provider: str = "copilot"
 
     # Anthropic (when ai_provider == "anthropic")
@@ -15,6 +15,10 @@ class Config:
 
     # GitHub Copilot / GitHub Models (when ai_provider == "copilot")
     copilot_model: str = "gpt-4o-mini"
+
+    # Ollama (when ai_provider == "ollama")
+    ollama_url: str = "http://host.docker.internal:11434"
+    ollama_model: str = "qwen2.5:7b"
 
     # GitHub
     github_token: str = ""
@@ -59,6 +63,8 @@ class Config:
     def has_ai(self) -> bool:
         if self.ai_provider == "anthropic":
             return bool(self.anthropic_api_key)
+        if self.ai_provider == "ollama":
+            return True  # Ollama is local, no key needed
         return bool(self.github_token)  # copilot uses github token
 
     @classmethod
@@ -78,6 +84,8 @@ class Config:
             daily_report_hour=int(os.environ.get("DAILY_REPORT_HOUR", cls.daily_report_hour)),
             oxia_image=os.environ.get("OXIA_IMAGE", cls.oxia_image),
             okk_worker_image=os.environ.get("OKK_WORKER_IMAGE", cls.okk_worker_image),
+            ollama_url=os.environ.get("OLLAMA_URL", cls.ollama_url),
+            ollama_model=os.environ.get("OLLAMA_MODEL", cls.ollama_model),
             triage_enabled=os.environ.get("TRIAGE_ENABLED", "true").lower() == "true",
             coordinator_url=os.environ.get("COORDINATOR_URL", cls.coordinator_url),
             triage_url=os.environ.get("TRIAGE_URL", cls.triage_url),

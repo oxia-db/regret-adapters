@@ -56,19 +56,33 @@ class Agent:
         if self._provider == "anthropic":
             import anthropic
             self._anthropic = anthropic.Anthropic(api_key=config.anthropic_api_key)
+        elif self._provider == "ollama":
+            from openai import OpenAI
+            self._openai = OpenAI(
+                base_url=f"{config.ollama_url}/v1",
+                api_key="ollama",
+                max_retries=0,
+                timeout=120.0,
+            )
+            self._openai_model = config.ollama_model
         else:
             from openai import OpenAI
             self._openai = OpenAI(
                 base_url="https://models.inference.ai.azure.com",
                 api_key=config.github_token,
-                max_retries=0,  # We handle rate limiting ourselves
+                max_retries=0,
             )
+            self._openai_model = config.copilot_model
 
         # Rate limiting: track API calls to stay within quota
-        # Free tier: gpt-4o-mini 150/day 10/min, gpt-4o 50/day 10/min
         self._call_timestamps: deque[float] = deque()
-        self._max_calls_per_day = 120  # Leave headroom from 150
-        self._max_calls_per_min = 8
+        if self._provider == "ollama":
+            self._max_calls_per_day = 999999
+            self._max_calls_per_min = 999999
+        else:
+            # Free tier: gpt-4o-mini 150/day 10/min, gpt-4o 50/day 10/min
+            self._max_calls_per_day = 120  # Leave headroom from 150
+            self._max_calls_per_min = 8
 
         # Dedup: skip repeated events of the same type within cooldown
         self._recent_events: dict[str, float] = {}
@@ -180,7 +194,7 @@ class Agent:
         try:
             if self._provider == "anthropic":
                 return self._react_anthropic(event)
-            return self._react_copilot(event)
+            return self._react_openai(event)
         except Exception as e:
             err_str = str(e)
             if "429" in err_str or "RateLimit" in err_str:
@@ -288,7 +302,7 @@ class Agent:
         logger.warning("Agent hit max tool rounds")
         return self._extract_text_anthropic(response)
 
-    def _react_copilot(self, event: Event) -> str:
+    def _react_openai(self, event: Event) -> str:
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": self._format_event(event)},
@@ -297,7 +311,7 @@ class Agent:
 
         for _ in range(MAX_TOOL_ROUNDS):
             response = self._openai.chat.completions.create(
-                model=self.config.copilot_model,
+                model=self._openai_model,
                 messages=messages,
                 tools=tools,
                 max_tokens=4096,
