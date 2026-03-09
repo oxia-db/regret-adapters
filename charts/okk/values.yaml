@@ -16,13 +16,16 @@ agent:
   replicas: 1
   port: 8080
   env:
+    AI_PROVIDER: "copilot"
+    COPILOT_MODEL: "gpt-4o"
     OKK_NAMESPACE: okk-system
     IN_CLUSTER: "true"
-    PROMETHEUS_URL: "http://prometheus.monitoring.svc.cluster.local:9090"
+    PROMETHEUS_URL: "http://prometheus-operated:9090"
     DAILY_REPORT_HOUR: "0"
     OXIA_IMAGE: "oxia/oxia:latest"
     OKK_WORKER_IMAGE: "oxia/okk-jvm-worker:main"
     COORDINATOR_URL: "http://okk-coordinator:8080"
+    TRIAGE_ENABLED: "false"
   secrets:
     ANTHROPIC_API_KEY: "replace-me"
     GITHUB_TOKEN: "replace-me"

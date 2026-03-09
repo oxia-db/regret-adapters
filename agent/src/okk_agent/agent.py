@@ -191,6 +191,25 @@ class Agent:
         if not self._triage_event(event):
             return ""
 
+        # For periodic events, always post a stats comment regardless of AI quality
+        if event.type in ("periodic_summary", "startup", "health_check"):
+            snapshot = self._gather_snapshot()
+            inv_raw = snapshot.get("invariants", "{}")
+            try:
+                inv_data = json.loads(inv_raw) if isinstance(inv_raw, str) else inv_raw
+                all_passed = inv_data.get("passed", True)
+            except (json.JSONDecodeError, TypeError):
+                all_passed = True
+
+            # health_check: only comment if there's a violation
+            if event.type == "health_check" and all_passed:
+                logger.info("Health check: all invariants hold, no comment needed.")
+                return "healthy"
+
+            verdict = "All invariants hold." if all_passed else inv_data.get("summary", "Issues detected.")
+            self._post_stats_comment(event.type, verdict, snapshot)
+            return verdict
+
         if not self._check_rate_limit():
             return self._fallback_to_triage(event)
 
@@ -218,18 +237,20 @@ class Agent:
         logger.info("Using local model (fallback) for event: %s", event.type)
         try:
             # Gather context ourselves (no tool calling for local model)
+            snapshot = self._gather_snapshot()
             context_parts = [self._format_event(event)]
 
             if event.type in ("health_check", "startup", "periodic_summary"):
-                tc_data = self.observe.list_testcases()
-                context_parts.append(f"## TestCases\n{tc_data}")
-
-                pod_data = self.observe.get_pod_status(label_selector="app=data-server-okk")
+                pod_data = self.observe.get_pod_status(
+                    label_selector="app.kubernetes.io/name=oxia-cluster",
+                )
                 context_parts.append(f"## Oxia Cluster Pods\n{pod_data}")
 
                 try:
-                    logs = self.observe.get_pod_logs(pod_name="app.kubernetes.io/component=node", since_minutes=5)
-                    # Only include if there are errors
+                    logs = self.observe.get_pod_logs(
+                        pod_name="app.kubernetes.io/component=server",
+                        since_minutes=5,
+                    )
                     if any(kw in logs.lower() for kw in ["error", "panic", "fatal", "warn"]):
                         context_parts.append(f"## Data Server Logs (errors found)\n{logs[:1000]}")
                 except Exception:
@@ -239,7 +260,10 @@ class Agent:
 
             prompt = (
                 "You are the okk verification agent monitoring Oxia. "
-                "Based on the data below, write a 1-2 sentence summary. "
+                "Based on the data below, write a comment in this EXACT format:\n"
+                "🤖 [event_type] | ops: X | assertions: Y passed, Z failed | p99: Xms | pods: N/N ready\n"
+                "<one line verdict>\n\n"
+                "Extract the actual numbers from the data. "
                 "If everything is healthy, reply with just: HEALTHY\n"
                 "If there are problems, describe them briefly.\n\n"
                 f"{context}"
@@ -340,6 +364,92 @@ class Agent:
         logger.warning("Agent hit max tool rounds")
         return choice.message.content or ""
 
+    def _gather_snapshot(self) -> dict:
+        """Pre-gather key stats so the model has data without extra tool calls."""
+        snapshot = {}
+        try:
+            tc_data = self.observe.list_testcases()
+            snapshot["testcases"] = tc_data
+        except Exception:
+            pass
+        try:
+            if self.invariants:
+                snapshot["invariants"] = self.invariants.check_invariants()
+        except Exception:
+            pass
+        return snapshot
+
+    def _format_stats_line(self, event_type: str, snapshot: dict) -> str:
+        """Build a stats header line from snapshot data — no AI needed."""
+        total_ops = 0
+        total_passed = 0
+        total_failed = 0
+        tc_lines = []
+
+        # Parse testcases
+        tc_raw = snapshot.get("testcases", "")
+        if tc_raw:
+            try:
+                tc_data = json.loads(tc_raw) if isinstance(tc_raw, str) else tc_raw
+                testcases = tc_data.get("testcases", []) if isinstance(tc_data, dict) else []
+                for tc in testcases:
+                    ops = tc.get("operations", 0)
+                    passed = tc.get("assertions_passed", 0)
+                    failed = tc.get("assertions_failed", 0)
+                    total_ops += ops
+                    total_passed += passed
+                    total_failed += failed
+                    tc_lines.append(f"{tc['name']}: {ops:,} ops, {passed:,}✓ {failed}✗")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Parse invariants
+        p99 = "n/a"
+        throughput = "n/a"
+        pods_ready = "n/a"
+        inv_raw = snapshot.get("invariants", "")
+        if inv_raw:
+            try:
+                inv_data = json.loads(inv_raw) if isinstance(inv_raw, str) else inv_raw
+                for check in inv_data.get("checks", []):
+                    if check["name"] == "performance.p99_latency" and check.get("value") is not None:
+                        p99 = f"{check['value']}ms"
+                    elif check["name"] == "performance.throughput" and check.get("value") is not None:
+                        throughput = f"{check['value']} ops/s"
+                    elif "pods_healthy" in check["name"] and check.get("value") is not None:
+                        pods_ready = f"{check['value']}"
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        header = (
+            f"🤖 {event_type} | ops: {total_ops:,} | "
+            f"assertions: {total_passed:,} passed, {total_failed} failed | "
+            f"p99: {p99} | throughput: {throughput}"
+        )
+        return header, tc_lines
+
+    def _post_stats_comment(self, event_type: str, verdict: str, snapshot: dict):
+        """Post a stats-rich comment to the daily issue — no AI needed."""
+        if not self.report:
+            return
+        try:
+            header, tc_lines = self._format_stats_line(event_type, snapshot)
+            body = header + "\n"
+            if tc_lines:
+                body += "\n".join(tc_lines) + "\n"
+            if verdict:
+                body += verdict
+            daily = self.report.get_or_create_daily_issue()
+            daily_data = json.loads(daily)
+            if "number" in daily_data:
+                self.report.comment_on_issue(
+                    issue_number=daily_data["number"],
+                    body=body,
+                )
+                logger.info("Posted stats comment on issue #%d", daily_data["number"])
+        except Exception as e:
+            logger.warning("Failed to post stats comment: %s", e)
+
     def _format_event(self, event: Event) -> str:
         parts = [
             f"## Event: {event.type}",
@@ -347,6 +457,14 @@ class Agent:
         ]
         if event.details:
             parts.append(f"**Details**:\n```json\n{json.dumps(event.details, indent=2)}\n```")
+
+        # Pre-gather stats for events that need to comment
+        if event.type in ("startup", "health_check", "periodic_summary",
+                          "chaos_round", "scale_event", "daily_report"):
+            snapshot = self._gather_snapshot()
+            if snapshot:
+                parts.append(f"**Current Cluster Snapshot** (use these numbers in your comment):\n```json\n{json.dumps(snapshot, indent=2)}\n```")
+
         parts.append("\nPlease investigate and take appropriate action based on your responsibilities.")
         return "\n\n".join(parts)
 

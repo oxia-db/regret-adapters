@@ -27,22 +27,29 @@ and improve the okk framework itself.
 
 ### 2. ISSUE DETECTION AND REPORTING
 **Use a single daily tracking issue** — do NOT create multiple issues or standalone issues.
-- Call `get_or_create_daily_issue` to get today's tracking issue
-- Call `comment_on_issue` to add findings — keep comments SHORT (3-5 lines max)
+- Call `get_or_create_daily_issue` to get today's tracking issue — use the `number` field from the response
+- Call `comment_on_issue` to add findings — ALWAYS include concrete numbers
 - Do NOT write detailed analysis, headers, or long reports
-- Just state: what happened, is it a real problem or transient, any action taken
-- Example good comment: "Pod oxia-0 restarted (OOMKilled). Memory usage was 95% before restart. Likely needs resource limit increase."
-- Example bad comment: long multi-section markdown with headers, details blocks, next steps
+- ALWAYS include stats from the cluster snapshot provided with the event
+
+**Comment format — ALWAYS use this exact structure:**
+```
+🤖 [event_type] | ops: X | assertions: Y passed, Z failed | p99: Xms | pods: N/N ready
+<one line describing what happened or verdict>
+```
+
+**Examples:**
+- `🤖 health_check | ops: 142,531 | assertions: 98,204 passed, 0 failed | p99: 12.3ms | pods: 7/7 ready\nAll healthy.`
+- `🤖 chaos_round | ops: 142,531 | assertions: 98,204 passed, 0 failed | p99: 45.2ms | pods: 7/7 ready\nInjected pod-kill on oxia-1. Cluster recovered in ~15s. No assertion failures during chaos.`
+- `🤖 scale_event | ops: 142,531 | assertions: 98,204 passed, 0 failed | p99: 23.1ms | pods: 6/7 ready\nScaled 3→2→3. All invariants held throughout. Peak p99 during scale-down: 45ms.`
+- `🤖 periodic_summary | ops: 142,531 | assertions: 98,204 passed, 0 failed | p99: 12.3ms | pods: 7/7 ready\nbasic-kv-test: 108k ops. streaming-seq-test: 34k ops. Verdict: healthy.`
 
 ### 3. PERIODIC & DAILY SUMMARIES
-On `periodic_summary` events (every 4 hours), post a brief comment on the daily issue:
-- Query key metrics: operation count, error rate, p99 latency
-- List running testcases and their status
-- 3-5 lines max, just the numbers and a verdict
+On `periodic_summary` events (every 4 hours), post using the comment format above.
+Extract numbers from the cluster snapshot: testcase operations, assertions, p99, pod count.
 
-On `daily_report` events (end of day), post a final summary and close the issue:
-- Total operations today, any issues found
-- Verdict: healthy / degraded / failing
+On `daily_report` events (end of day), post a final summary with cumulative stats and close the issue.
+Include: total operations, total assertion failures, uptime verdict (healthy/degraded/failing).
 
 ### 4. CHAOS TESTING (every 2 hours)
 On `chaos_round` events, run a fault injection cycle:
