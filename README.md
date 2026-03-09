@@ -21,10 +21,10 @@ helm repo add okk https://oxia-db.github.io/okk/
 helm repo update
 ```
 
-2. Install the charts
+2. Install the chart
 
 ```
-helm install okk-stack okk/okk-stack --namespace okk --create-namespace
+helm install okk okk/okk --namespace okk --create-namespace
 ```
 
 3. Run `TestCase` by examples
@@ -35,4 +35,4 @@ We provide some commonly used test cases you can apply directly from [example](.
 
 You can customize your deployment by using the --set flag or by providing a custom values.yaml file.
 
-To see all available configuration options, refer to the [values.yaml](./charts/okk-stack/values.yaml) file in the chart's repository.
+To see all available configuration options, refer to the [values.yaml](./charts/okk/values.yaml) file in the chart's repository.
