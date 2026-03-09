@@ -50,6 +50,7 @@ class InvariantChecker:
         checks: list[CheckResult] = []
         checks.extend(self._check_safety())
         checks.extend(self._check_liveness(max_restarts))
+        checks.extend(self._check_balance())
         checks.extend(self._check_performance(p99_threshold_ms))
 
         tier_results = {}
@@ -188,6 +189,101 @@ class InvariantChecker:
                     passed=False,
                     message=f"Failed to check {group_name}: {e}",
                 ))
+
+        return results
+
+    # ── Balance ───────────────────────────────────────────
+
+    def _check_balance(self) -> list[CheckResult]:
+        """Check shard and leader distribution across nodes."""
+        results: list[CheckResult] = []
+
+        try:
+            import yaml
+            cm = self.k8s_core.read_namespaced_config_map(
+                "oxia-status", self._namespace,
+            )
+            status = yaml.safe_load(cm.data.get("status", "")) or {}
+        except Exception as e:
+            results.append(CheckResult(
+                name="balance.oxia_status",
+                tier="safety",
+                passed=True,
+                message=f"Cannot read oxia-status: {e} (skipping balance check)",
+            ))
+            return results
+
+        # Count shards per node (ensemble members) and leaders per node
+        shard_count: dict[str, int] = {}  # node -> shard count
+        leader_count: dict[str, int] = {}  # node -> leader count
+        total_shards = 0
+
+        for ns_data in status.get("namespaces", {}).values():
+            for shard_data in ns_data.get("shards", {}).values():
+                total_shards += 1
+
+                # Count ensemble members
+                for member in shard_data.get("ensemble", []):
+                    node = member.get("internal", "unknown")
+                    shard_count[node] = shard_count.get(node, 0) + 1
+
+                # Count leader
+                leader = shard_data.get("leader", {})
+                if leader:
+                    node = leader.get("internal", "unknown")
+                    leader_count[node] = leader_count.get(node, 0) + 1
+
+                # Check for pending operations
+                pending = shard_data.get("pendingDeleteShardNodes", [])
+                if pending:
+                    results.append(CheckResult(
+                        name="balance.no_pending_ops",
+                        tier="safety",
+                        passed=False,
+                        message=f"Pending shard deletions: {len(pending)} nodes draining",
+                        value=len(pending),
+                    ))
+
+        if not shard_count:
+            results.append(CheckResult(
+                name="balance.shard_distribution",
+                tier="safety",
+                passed=True,
+                message="No shard data available (single shard or no data)",
+            ))
+            return results
+
+        # Check shard distribution
+        counts = list(shard_count.values())
+        if len(counts) > 1:
+            max_diff = max(counts) - min(counts)
+            balanced = max_diff <= 1
+            node_summary = ", ".join(f"{n.split('.')[0]}: {c}" for n, c in sorted(shard_count.items()))
+            results.append(CheckResult(
+                name="balance.shard_distribution",
+                tier="safety",
+                passed=balanced,
+                message=f"Shard distribution: {node_summary}" + (
+                    "" if balanced else f" (imbalanced, max diff={max_diff})"
+                ),
+                value=dict(shard_count),
+            ))
+
+        # Check leader distribution
+        leader_counts = list(leader_count.values())
+        if len(leader_counts) > 1:
+            max_diff = max(leader_counts) - min(leader_counts)
+            balanced = max_diff <= 1
+            node_summary = ", ".join(f"{n.split('.')[0]}: {c}" for n, c in sorted(leader_count.items()))
+            results.append(CheckResult(
+                name="balance.leader_distribution",
+                tier="safety",
+                passed=balanced,
+                message=f"Leader distribution: {node_summary}" + (
+                    "" if balanced else f" (imbalanced, max diff={max_diff})"
+                ),
+                value=dict(leader_count),
+            ))
 
         return results
 

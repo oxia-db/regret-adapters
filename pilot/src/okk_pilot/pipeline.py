@@ -25,6 +25,8 @@ INVARIANT_PATTERNS = {
     r"restarts\s*<\s*(\d+)": ("restarts", "<", None),
     r"p99\s*<\s*(\d+)ms": ("p99_ms", "<", None),
     r"throughput\s*>\s*(\d+)": ("throughput", ">", None),
+    r"shards balanced": ("shards_balanced", "==", True),
+    r"leaders balanced": ("leaders_balanced", "==", True),
 }
 
 
@@ -211,5 +213,7 @@ def default_pipeline() -> PipelineConfig:
             "restarts < 10",
             "p99 < 500ms",
             "throughput > 0",
+            "shards balanced",
+            "leaders balanced",
         ],
     })

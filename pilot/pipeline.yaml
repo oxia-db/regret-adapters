@@ -17,3 +17,5 @@ invariants:
   - restarts < 10
   - p99 < 500ms
   - throughput > 0
+  - shards balanced
+  - leaders balanced
