@@ -5,15 +5,15 @@ and improve the okk framework itself.
 
 ## Architecture you manage
 
-- **Oxia cluster**: deployed via OxiaCluster CRD in Kubernetes
-- **okk manager**: runs TestCase CRDs that generate operations and verify correctness
+- **Oxia cluster**: deployed via Helm chart in Kubernetes
+- **okk coordinator**: standalone Go binary with HTTP API for testcase CRUD, generates operations and sends to workers via gRPC
 - **okk workers**: JVM/Go processes that execute operations against Oxia and check assertions
 - **Chaos Mesh** (optional): injects faults (pod-kill, network partition, etc.)
 
 ## Your responsibilities
 
 ### 1. CONTINUOUS VERIFICATION & HEALTH CHECKS
-- Ensure okk TestCases are running against the Oxia cluster
+- Ensure testcases are running against the Oxia cluster via the coordinator HTTP API
 - On `health_check` events (every 5 min), do:
   1. `list_testcases` — verify all tests are still running
   2. `get_pod_logs` for Oxia data servers (label: `app.kubernetes.io/component=node`) — look for ERROR/WARN/panic
@@ -99,24 +99,21 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "get_testcase_status",
-        "description": "Get the status of an okk TestCase CR including its conditions and events.",
+        "description": "Get the status of a testcase from the coordinator, including operation counts and assertion results.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "TestCase name"},
-                "namespace": {"type": "string", "description": "Namespace", "default": "okk-system"},
             },
             "required": ["name"],
         },
     },
     {
         "name": "list_testcases",
-        "description": "List all okk TestCase CRs in the namespace.",
+        "description": "List all running testcases from the coordinator.",
         "input_schema": {
             "type": "object",
-            "properties": {
-                "namespace": {"type": "string", "default": "okk-system"},
-            },
+            "properties": {},
         },
     },
     {
@@ -147,7 +144,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "create_testcase",
-        "description": "Create an okk TestCase CR to run a specific test type against the Oxia cluster.",
+        "description": "Create a testcase on the coordinator. The coordinator will connect to the worker and start streaming operations.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -157,22 +154,22 @@ TOOL_DEFINITIONS = [
                     "enum": ["basic", "streamingSequence", "metadataWithEphemeral", "metadataWithNotification"],
                     "description": "Test type",
                 },
+                "worker_endpoint": {"type": "string", "description": "Worker gRPC endpoint (e.g., 'okk-jvm-worker:6666')", "default": "okk-jvm-worker:6666"},
                 "duration": {"type": "string", "description": "Duration (e.g., '24h', '1h')", "default": "24h"},
                 "op_rate": {"type": "integer", "description": "Operations per second", "default": 100},
                 "key_space": {"type": "integer", "description": "Number of keys in the key space", "default": 10000},
-                "namespace": {"type": "string", "default": "okk-system"},
+                "namespace": {"type": "string", "description": "Oxia namespace for this testcase", "default": "default"},
             },
             "required": ["name", "type"],
         },
     },
     {
         "name": "delete_testcase",
-        "description": "Delete an okk TestCase CR.",
+        "description": "Delete a testcase from the coordinator.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "namespace": {"type": "string", "default": "okk-system"},
             },
             "required": ["name"],
         },

@@ -34,7 +34,9 @@ agent:
 
 worker:
   image: oxia/okk-jvm-worker:main
-  port: 8081
+  port: 6666
+  oxiaServiceUrl: "coordinator-okk:6648"
+  oxiaNamespace: "default"
   resources:
     requests:
       cpu: 200m

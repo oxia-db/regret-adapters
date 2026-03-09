@@ -207,7 +207,7 @@ class Agent:
                 tc_data = self.observe.list_testcases()
                 context_parts.append(f"## TestCases\n{tc_data}")
 
-                pod_data = self.observe.get_pod_status(label_selector="app.kubernetes.io/name=oxia-cluster")
+                pod_data = self.observe.get_pod_status(label_selector="app=data-server-okk")
                 context_parts.append(f"## Oxia Cluster Pods\n{pod_data}")
 
                 try:

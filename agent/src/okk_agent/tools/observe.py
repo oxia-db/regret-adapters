@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.request
+import urllib.error
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 
 from kubernetes import client as k8s_client
@@ -10,22 +13,15 @@ from okk_agent.config import Config
 
 logger = logging.getLogger(__name__)
 
-# CRD group/version for okk resources
-OKK_GROUP = "core.oxia.io"
-OKK_VERSION = "v1"
-
 
 class ObserveTools:
-    def __init__(self, config: Config, k8s_custom: k8s_client.CustomObjectsApi, k8s_core: k8s_client.CoreV1Api):
+    def __init__(self, config: Config, k8s_core: k8s_client.CoreV1Api):
         self.config = config
-        self.k8s_custom = k8s_custom
         self.k8s_core = k8s_core
         self._prometheus_url = config.prometheus_url
+        self._coordinator_url = config.coordinator_url.rstrip("/")
 
     def query_metrics(self, query: str, range_minutes: int = 0) -> str:
-        import urllib.request
-        import urllib.parse
-
         if range_minutes > 0:
             now = datetime.now(timezone.utc)
             start = now - timedelta(minutes=range_minutes)
@@ -45,7 +41,6 @@ class ObserveTools:
                 data = json.loads(resp.read())
                 if data.get("status") == "success":
                     results = data.get("data", {}).get("result", [])
-                    # Summarize to avoid huge payloads
                     summary = []
                     for r in results[:20]:
                         metric = r.get("metric", {})
@@ -64,46 +59,28 @@ class ObserveTools:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    def get_testcase_status(self, name: str, namespace: str = "okk-system") -> str:
+    def get_testcase_status(self, name: str) -> str:
         try:
-            tc = self.k8s_custom.get_namespaced_custom_object(
-                group=OKK_GROUP, version=OKK_VERSION, namespace=namespace,
-                plural="testcases", name=name,
-            )
-            return json.dumps({
-                "name": tc["metadata"]["name"],
-                "type": tc["spec"].get("type"),
-                "duration": tc["spec"].get("duration"),
-                "opRate": tc["spec"].get("opRate"),
-                "status": tc.get("status", {}),
-                "created": tc["metadata"].get("creationTimestamp"),
-            }, indent=2)
-        except k8s_client.ApiException as e:
-            return json.dumps({"error": f"Failed to get TestCase {name}: {e.reason}"})
+            url = f"{self._coordinator_url}/testcases/{urllib.parse.quote(name)}"
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                return resp.read().decode()
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else str(e)
+            return json.dumps({"error": f"Failed to get testcase {name}: {error_body}"})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
 
-    def list_testcases(self, namespace: str = "okk-system") -> str:
+    def list_testcases(self) -> str:
         try:
-            result = self.k8s_custom.list_namespaced_custom_object(
-                group=OKK_GROUP, version=OKK_VERSION, namespace=namespace,
-                plural="testcases",
-            )
-            testcases = []
-            for tc in result.get("items", []):
-                testcases.append({
-                    "name": tc["metadata"]["name"],
-                    "type": tc["spec"].get("type"),
-                    "duration": tc["spec"].get("duration"),
-                    "opRate": tc["spec"].get("opRate"),
-                    "created": tc["metadata"].get("creationTimestamp"),
-                })
-            return json.dumps(testcases, indent=2)
-        except k8s_client.ApiException as e:
-            return json.dumps({"error": f"Failed to list TestCases: {e.reason}"})
+            url = f"{self._coordinator_url}/testcases"
+            with urllib.request.urlopen(url, timeout=10) as resp:
+                return resp.read().decode()
+        except Exception as e:
+            return json.dumps({"error": str(e)})
 
     def get_pod_logs(self, pod_name: str, namespace: str = "okk-system",
                      since_minutes: int = 10, container: str | None = None) -> str:
         try:
-            # If pod_name looks like a label selector, find pods first
             if "=" in pod_name:
                 pods = self.k8s_core.list_namespaced_pod(
                     namespace=namespace, label_selector=pod_name,
@@ -152,6 +129,10 @@ class ObserveTools:
             return json.dumps({"error": f"Failed to get pods: {e.reason}"})
 
     def get_chaos_status(self, namespace: str = "okk-system") -> str:
+        # Note: This still uses k8s_custom for Chaos Mesh CRDs
+        from kubernetes import client as k8s_client
+        k8s_custom = k8s_client.CustomObjectsApi()
+
         chaos_types = [
             ("chaos-mesh.org", "v1alpha1", "podchaos"),
             ("chaos-mesh.org", "v1alpha1", "networkchaos"),
@@ -161,7 +142,7 @@ class ObserveTools:
         all_chaos = []
         for group, version, plural in chaos_types:
             try:
-                result = self.k8s_custom.list_namespaced_custom_object(
+                result = k8s_custom.list_namespaced_custom_object(
                     group=group, version=version, namespace=namespace, plural=plural,
                 )
                 for item in result.get("items", []):
@@ -171,6 +152,6 @@ class ObserveTools:
                         "created": item["metadata"].get("creationTimestamp"),
                         "status": item.get("status", {}),
                     })
-            except k8s_client.ApiException:
-                pass  # Chaos Mesh CRDs may not be installed
+            except Exception:
+                pass
         return json.dumps(all_chaos, indent=2)

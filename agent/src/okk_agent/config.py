@@ -49,6 +49,9 @@ class Config:
     triage_url: str = "http://host.docker.internal:11434"  # Ollama from inside K8s
     triage_model: str = "qwen2.5:7b"
 
+    # Coordinator
+    coordinator_url: str = "http://okk-coordinator:8080"
+
     # Agent state
     state_configmap: str = "okk-agent-state"
 
@@ -76,6 +79,7 @@ class Config:
             oxia_image=os.environ.get("OXIA_IMAGE", cls.oxia_image),
             okk_worker_image=os.environ.get("OKK_WORKER_IMAGE", cls.okk_worker_image),
             triage_enabled=os.environ.get("TRIAGE_ENABLED", "true").lower() == "true",
+            coordinator_url=os.environ.get("COORDINATOR_URL", cls.coordinator_url),
             triage_url=os.environ.get("TRIAGE_URL", cls.triage_url),
             triage_model=os.environ.get("TRIAGE_MODEL", cls.triage_model),
         )

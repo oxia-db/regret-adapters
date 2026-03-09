@@ -45,7 +45,7 @@ class OkkAgent:
         k8s_core = k8s_client.CoreV1Api()
 
         # Init tool providers
-        observe = ObserveTools(config, k8s_custom, k8s_core)
+        observe = ObserveTools(config, k8s_core)
         act = ActTools(config, k8s_custom)
         report = ReportTools(config) if config.github_token else None
         state = StateTools(config, k8s_core)

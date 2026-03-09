@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.request
+import urllib.error
 
 from kubernetes import client as k8s_client
 
@@ -9,8 +11,6 @@ from okk_agent.config import Config
 
 logger = logging.getLogger(__name__)
 
-OKK_GROUP = "core.oxia.io"
-OKK_VERSION = "v1"
 CHAOS_GROUP = "chaos-mesh.org"
 CHAOS_VERSION = "v1alpha1"
 
@@ -19,49 +19,54 @@ class ActTools:
     def __init__(self, config: Config, k8s_custom: k8s_client.CustomObjectsApi):
         self.config = config
         self.k8s_custom = k8s_custom
+        self._coordinator_url = config.coordinator_url.rstrip("/")
 
     def create_testcase(
-        self, name: str, type: str, duration: str = "24h",
-        op_rate: int = 100, key_space: int = 10000, namespace: str = "okk-system",
+        self, name: str, type: str, worker_endpoint: str = "",
+        duration: str = "24h", op_rate: int = 100, key_space: int = 10000,
+        namespace: str = "default",
     ) -> str:
-        body = {
-            "apiVersion": f"{OKK_GROUP}/{OKK_VERSION}",
-            "kind": "TestCase",
-            "metadata": {"name": name, "namespace": namespace},
-            "spec": {
-                "type": type,
-                "duration": duration,
-                "opRate": op_rate,
-                "properties": {"keySpace": str(key_space)},
-                "worker": {
-                    "image": self.config.okk_worker_image,
-                    "targetCluster": {
-                        "name": "okk",
-                        "namespace": namespace,
-                    },
-                },
-            },
-        }
-        try:
-            self.k8s_custom.create_namespaced_custom_object(
-                group=OKK_GROUP, version=OKK_VERSION, namespace=namespace,
-                plural="testcases", body=body,
-            )
-            return json.dumps({"status": "created", "name": name, "type": type})
-        except k8s_client.ApiException as e:
-            if e.status == 409:
-                return json.dumps({"status": "already_exists", "name": name})
-            return json.dumps({"error": f"Failed to create TestCase: {e.reason}"})
+        if not worker_endpoint:
+            worker_endpoint = f"okk-jvm-worker:6666"
 
-    def delete_testcase(self, name: str, namespace: str = "okk-system") -> str:
+        body = json.dumps({
+            "name": name,
+            "type": type,
+            "namespace": namespace,
+            "workerEndpoint": worker_endpoint,
+            "opRate": op_rate,
+            "duration": duration,
+            "properties": {"keySpace": str(key_space)},
+        }).encode()
+
         try:
-            self.k8s_custom.delete_namespaced_custom_object(
-                group=OKK_GROUP, version=OKK_VERSION, namespace=namespace,
-                plural="testcases", name=name,
+            req = urllib.request.Request(
+                f"{self._coordinator_url}/testcases",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
             )
-            return json.dumps({"status": "deleted", "name": name})
-        except k8s_client.ApiException as e:
-            return json.dumps({"error": f"Failed to delete TestCase: {e.reason}"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.read().decode()
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else str(e)
+            return json.dumps({"error": f"Failed to create testcase: {error_body}"})
+        except Exception as e:
+            return json.dumps({"error": f"Failed to create testcase: {str(e)}"})
+
+    def delete_testcase(self, name: str) -> str:
+        try:
+            req = urllib.request.Request(
+                f"{self._coordinator_url}/testcases/{name}",
+                method="DELETE",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.read().decode()
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else str(e)
+            return json.dumps({"error": f"Failed to delete testcase: {error_body}"})
+        except Exception as e:
+            return json.dumps({"error": f"Failed to delete testcase: {str(e)}"})
 
     def inject_chaos(
         self, type: str, target: str, duration: str = "30s",
@@ -82,7 +87,6 @@ class ActTools:
             return json.dumps({"error": f"Failed to inject chaos: {e.reason}"})
 
     def _build_chaos_spec(self, type: str, target: str, duration: str, namespace: str) -> dict:
-        # Parse label selector into dict
         labels = {}
         for part in target.split(","):
             if "=" in part:
