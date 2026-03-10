@@ -32,8 +32,9 @@ type basicKv struct {
 
 	sequence int64
 
-	initialized bool
-	data        *DataTree
+	initialized  bool
+	needsCleanup bool
+	data         *DataTree
 }
 
 func (b *basicKv) Name() string {
@@ -41,6 +42,21 @@ func (b *basicKv) Name() string {
 }
 
 func (b *basicKv) Next() (*proto.Operation, bool) {
+	if b.needsCleanup {
+		b.needsCleanup = false
+		b.logger.Info("Cleaning up stale data from previous run", "prefix", b.name)
+		keyStart := b.name
+		keyEnd := b.name + "~"
+		return &proto.Operation{
+			Operation: &proto.Operation_DeleteRange{
+				DeleteRange: &proto.OperationDeleteRange{
+					KeyStart: keyStart,
+					KeyEnd:   keyEnd,
+				},
+			},
+		}, true
+	}
+
 	if b.duration != nil && time.Since(b.startTime) > *b.duration {
 		b.logger.Info("Finish the basic kv generator", "name", b.name)
 		return nil, false
@@ -365,6 +381,7 @@ func NewBasicKv(ctx context.Context, tc *config.TestCaseConfig) Generator {
 		startTime:       time.Now(),
 		sequence:        0,
 		initialized:     false,
+		needsCleanup:    true,
 		keySpace:        keySpace,
 		rateLimit:       rate.NewLimiter(rate.Limit(opRate), opRate),
 		data:            NewDataTree(),

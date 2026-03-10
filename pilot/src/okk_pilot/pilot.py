@@ -60,6 +60,7 @@ class Pilot:
         # Event dedup
         self._recent_events: dict[str, float] = {}
         self._event_cooldown = 300
+        self._last_invariant_verdict: str | None = None
 
         logger.info("Pilot initialized with pipeline: %s",
                      [a.raw for a in self.pipeline.actions])
@@ -125,6 +126,7 @@ class Pilot:
 
         if inv.get("passed", True):
             logger.info("Invariants: all hold.")
+            self._last_invariant_verdict = None
             return "healthy"
 
         verdict = inv.get("summary", "Invariant violation detected.")
@@ -132,7 +134,13 @@ class Pilot:
         if analysis:
             verdict += f"\n{analysis}"
 
-        self._post_stats("check_invariants", verdict, snapshot)
+        # Only post if the verdict changed to avoid flooding the issue with repeated comments
+        if verdict != self._last_invariant_verdict:
+            self._post_stats("check_invariants", verdict, snapshot)
+            self._last_invariant_verdict = verdict
+        else:
+            logger.info("Invariant verdict unchanged, skipping comment: %s", verdict)
+
         return verdict
 
     def _handle_inject_chaos(self, event: Event) -> str:
@@ -288,7 +296,19 @@ class Pilot:
     def _handle_post_report(self, event: Event) -> str:
         snapshot = self._gather_snapshot()
         verdict = self._verdict_from_snapshot(snapshot)
-        self._post_stats("post_report", verdict, snapshot)
+        header, tc_lines = self._format_stats_line("periodic_summary", snapshot)
+        body = header + "\n" + "\n".join(tc_lines)
+        if verdict != "All invariants hold.":
+            body += f"\n{verdict}"
+        else:
+            body += "\nAll invariants hold."
+        if self.report:
+            try:
+                daily = json.loads(self.report.get_or_create_daily_issue())
+                if "number" in daily:
+                    self.report.comment_on_issue(issue_number=daily["number"], body=body)
+            except Exception as e:
+                logger.warning("Failed to post periodic summary: %s", e)
         return verdict
 
     def _handle_daily_report(self, event: Event) -> str:
@@ -366,12 +386,18 @@ class Pilot:
 
     def _handle_k8s_warning(self, event: Event) -> str:
         reason = event.details.get("reason", "")
+        message = event.details.get("message", "")
         transient = (
             "FailedScheduling", "ImagePullBackOff", "Pulling", "Pulled",
             "FailedToUpdateEndpointSlices", "FailedToUpdateEndpoint",
             "FailedDelete", "FailedCreate",
+            "FailedAttachVolume", "FailedMount",
         )
         if reason in transient:
+            return ""
+
+        # Also filter "Failed" reason when the message indicates a transient image pull issue
+        if reason == "Failed" and any(kw in message for kw in ("ImagePullBackOff", "ErrImagePull", "image")):
             return ""
 
         if reason == "Unhealthy":

@@ -24,7 +24,8 @@ type streamingSequence struct {
 	rateLimit *rate.Limiter
 	startTime time.Time
 
-	sequence int64
+	sequence    int64
+	needsCleanup bool
 }
 
 func (s *streamingSequence) Name() string {
@@ -32,6 +33,23 @@ func (s *streamingSequence) Name() string {
 }
 
 func (s *streamingSequence) Next() (*proto.Operation, bool) {
+	if s.needsCleanup {
+		s.needsCleanup = false
+		s.logger.Info("Cleaning up stale data from previous run", "prefix", s.taskName)
+		keyStart := s.taskName
+		keyEnd := s.taskName + "~"
+		return &proto.Operation{
+			Timestamp: time.Now().UnixNano(),
+			Sequence:  0,
+			Operation: &proto.Operation_DeleteRange{
+				DeleteRange: &proto.OperationDeleteRange{
+					KeyStart: keyStart,
+					KeyEnd:   keyEnd,
+				},
+			},
+		}, true
+	}
+
 	if s.duration != nil && time.Since(s.startTime) > *s.duration {
 		s.logger.Info("Finish the streaming sequence generator", "name", s.taskName)
 		return nil, false
@@ -96,6 +114,7 @@ func NewStreamingSequence(ctx context.Context, tc *config.TestCaseConfig) Genera
 		duration:  tc.GetDuration(),
 		startTime: time.Now(),
 		rateLimit: rate.NewLimiter(rate.Limit(opRate), opRate),
-		sequence:  1,
+		sequence:     1,
+		needsCleanup: true,
 	}
 }

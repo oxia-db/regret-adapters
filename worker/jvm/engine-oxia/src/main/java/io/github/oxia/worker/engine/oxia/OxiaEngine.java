@@ -147,8 +147,10 @@ public class OxiaEngine implements Engine {
                 final var notification = assertion.getNotification();
                 final NotificationType expectType = notification.getType();
                 final String expectKey = notification.getKey();
+                // Derive key prefix to filter out notifications from other test cases
+                final String keyPrefix = expectKey != null ? expectKey.substring(0, expectKey.indexOf('/', 1) + 1) : null;
 
-                final var actualNotification = notifications.poll(3, TimeUnit.MINUTES);
+                final var actualNotification = pollMatchingNotification(keyPrefix, 3, TimeUnit.MINUTES);
                 if (actualNotification instanceof Notification.KeyCreated an) {
                     if (expectType != NotificationType.KEY_CREATED || !expectKey.equals(an.key())) {
                         return ExecuteResponse.newBuilder()
@@ -343,8 +345,9 @@ public class OxiaEngine implements Engine {
                 final var notification = assertion.getNotification();
                 final NotificationType expectType = notification.getType();
                 final String expectKey = notification.getKey();
+                final String keyPrefix = expectKey != null ? expectKey.substring(0, expectKey.indexOf('/', 1) + 1) : null;
 
-                final Notification actualNotification = notifications.poll(3, TimeUnit.MINUTES);
+                final Notification actualNotification = pollMatchingNotification(keyPrefix, 3, TimeUnit.MINUTES);
                 if (actualNotification instanceof Notification.KeyDeleted an) {
                     if (expectType != NotificationType.KEY_DELETED || !expectKey.equals(an.key())) {
                         return ExecuteResponse.newBuilder()
@@ -385,8 +388,10 @@ public class OxiaEngine implements Engine {
             if (assertion.hasNotification()) {
                 final var notification = assertion.getNotification();
                 final NotificationType expectType = notification.getType();
+                final String notifKeyStart = notification.getKeyStart();
+                final String keyPrefix = notifKeyStart != null ? notifKeyStart.substring(0, notifKeyStart.indexOf('/', 1) + 1) : null;
 
-                final Notification actualNotification = notifications.poll(3, TimeUnit.MINUTES);
+                final Notification actualNotification = pollMatchingNotification(keyPrefix, 3, TimeUnit.MINUTES);
                 if (actualNotification instanceof Notification.KeyRangeDelete an) {
                     if (expectType != NotificationType.KEY_RANGE_DELETED) {
                         return ExecuteResponse.newBuilder()
@@ -418,6 +423,36 @@ public class OxiaEngine implements Engine {
                 .build();
     }
 
+
+    /**
+     * Poll the notification queue, skipping notifications that don't match the given key prefix.
+     * This prevents cross-test-case notification pollution when multiple tests share one worker.
+     */
+    @SneakyThrows
+    private Notification pollMatchingNotification(String keyPrefix, long timeout, TimeUnit unit) {
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        while (System.nanoTime() < deadline) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) break;
+            Notification n = notifications.poll(remaining, TimeUnit.NANOSECONDS);
+            if (n == null) return null;
+            String notifKey = getNotificationKey(n);
+            if (keyPrefix == null || notifKey == null || notifKey.startsWith(keyPrefix)) {
+                return n;
+            }
+            // Skip notification from a different test case
+            log.debug("Skipping notification for different prefix: {} (expected prefix: {})", notifKey, keyPrefix);
+        }
+        return null;
+    }
+
+    private String getNotificationKey(Notification n) {
+        if (n instanceof Notification.KeyCreated kc) return kc.key();
+        if (n instanceof Notification.KeyModified km) return km.key();
+        if (n instanceof Notification.KeyDeleted kd) return kd.key();
+        if (n instanceof Notification.KeyRangeDelete kr) return kr.startKeyInclusive();
+        return null;
+    }
 
     @Override
     public ExecuteResponse onCommand(ExecuteCommand command) {
