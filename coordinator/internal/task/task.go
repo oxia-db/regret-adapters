@@ -128,6 +128,9 @@ func (t *task) run() error {
 					if operation.Assertion != nil {
 						t.assertionsPassed.Add(1)
 					}
+					if rag, ok := t.generator.(generator.ResponseAwareGenerator); ok {
+						rag.OnResponse(response)
+					}
 					t.syncStatus()
 					return nil
 				case proto.Status_RetryableFailure:

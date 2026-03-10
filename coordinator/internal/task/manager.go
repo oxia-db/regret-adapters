@@ -115,6 +115,8 @@ func (m *Manager) createGenerator(tc *config.TestCaseConfig) generator.Generator
 		return generator.NewMetadataNotificationGenerator(m.ctx, tc)
 	case config.TestCaseTypeMetadataWithEphemeral:
 		return generator.NewMetadataEphemeralGenerator(m.ctx, tc)
+	case config.TestCaseTypeConditionalPut:
+		return generator.NewConditionalPut(m.ctx, tc)
 	default:
 		return nil
 	}

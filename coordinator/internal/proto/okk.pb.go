@@ -217,14 +217,15 @@ func (*OperationSessionRestart) Descriptor() ([]byte, []int) {
 }
 
 type OperationPut struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Key              string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Value            []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-	Ephemeral        bool                   `protobuf:"varint,3,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
-	PartitionKey     *string                `protobuf:"bytes,4,opt,name=partition_key,json=partitionKey,proto3,oneof" json:"partition_key,omitempty"`
-	SequenceKeyDelta []uint64               `protobuf:"varint,5,rep,packed,name=sequence_key_delta,json=sequenceKeyDelta,proto3" json:"sequence_key_delta,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Key               string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value             []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Ephemeral         bool                   `protobuf:"varint,3,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
+	PartitionKey      *string                `protobuf:"bytes,4,opt,name=partition_key,json=partitionKey,proto3,oneof" json:"partition_key,omitempty"`
+	SequenceKeyDelta  []uint64               `protobuf:"varint,5,rep,packed,name=sequence_key_delta,json=sequenceKeyDelta,proto3" json:"sequence_key_delta,omitempty"`
+	ExpectedVersionId *int64                 `protobuf:"varint,6,opt,name=expected_version_id,json=expectedVersionId,proto3,oneof" json:"expected_version_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *OperationPut) Reset() {
@@ -290,6 +291,13 @@ func (x *OperationPut) GetSequenceKeyDelta() []uint64 {
 		return x.SequenceKeyDelta
 	}
 	return nil
+}
+
+func (x *OperationPut) GetExpectedVersionId() int64 {
+	if x != nil && x.ExpectedVersionId != nil {
+		return *x.ExpectedVersionId
+	}
+	return 0
 }
 
 type OperationGet struct {
@@ -911,14 +919,15 @@ func (x *Record) GetValue() []byte {
 }
 
 type Assertion struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	EventuallyEmpty *bool                  `protobuf:"varint,1,opt,name=eventually_empty,json=eventuallyEmpty,proto3,oneof" json:"eventually_empty,omitempty"`
-	EmptyRecords    *bool                  `protobuf:"varint,2,opt,name=empty_records,json=emptyRecords,proto3,oneof" json:"empty_records,omitempty"`
-	PartitionKey    *string                `protobuf:"bytes,3,opt,name=partition_key,json=partitionKey,proto3,oneof" json:"partition_key,omitempty"`
-	Records         []*Record              `protobuf:"bytes,4,rep,name=records,proto3" json:"records,omitempty"`
-	Notification    *Notification          `protobuf:"bytes,5,opt,name=notification,proto3,oneof" json:"notification,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	EventuallyEmpty       *bool                  `protobuf:"varint,1,opt,name=eventually_empty,json=eventuallyEmpty,proto3,oneof" json:"eventually_empty,omitempty"`
+	EmptyRecords          *bool                  `protobuf:"varint,2,opt,name=empty_records,json=emptyRecords,proto3,oneof" json:"empty_records,omitempty"`
+	PartitionKey          *string                `protobuf:"bytes,3,opt,name=partition_key,json=partitionKey,proto3,oneof" json:"partition_key,omitempty"`
+	Records               []*Record              `protobuf:"bytes,4,rep,name=records,proto3" json:"records,omitempty"`
+	Notification          *Notification          `protobuf:"bytes,5,opt,name=notification,proto3,oneof" json:"notification,omitempty"`
+	ExpectVersionConflict *bool                  `protobuf:"varint,6,opt,name=expect_version_conflict,json=expectVersionConflict,proto3,oneof" json:"expect_version_conflict,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Assertion) Reset() {
@@ -986,6 +995,13 @@ func (x *Assertion) GetNotification() *Notification {
 	return nil
 }
 
+func (x *Assertion) GetExpectVersionConflict() bool {
+	if x != nil && x.ExpectVersionConflict != nil {
+		return *x.ExpectVersionConflict
+	}
+	return false
+}
+
 type ExecuteCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Testcase      string                 `protobuf:"bytes,1,opt,name=testcase,proto3" json:"testcase,omitempty"`
@@ -1050,6 +1066,7 @@ type ExecuteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        Status                 `protobuf:"varint,1,opt,name=status,proto3,enum=io.oxia.okk.proto.v1.Status" json:"status,omitempty"`
 	StatusInfo    string                 `protobuf:"bytes,2,opt,name=status_info,json=statusInfo,proto3" json:"status_info,omitempty"`
+	VersionId     *int64                 `protobuf:"varint,3,opt,name=version_id,json=versionId,proto3,oneof" json:"version_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1098,19 +1115,28 @@ func (x *ExecuteResponse) GetStatusInfo() string {
 	return ""
 }
 
+func (x *ExecuteResponse) GetVersionId() int64 {
+	if x != nil && x.VersionId != nil {
+		return *x.VersionId
+	}
+	return 0
+}
+
 var File_okk_proto protoreflect.FileDescriptor
 
 const file_okk_proto_rawDesc = "" +
 	"\n" +
 	"\tokk.proto\x12\x14io.oxia.okk.proto.v1\"\x19\n" +
-	"\x17OperationSessionRestart\"\xbe\x01\n" +
+	"\x17OperationSessionRestart\"\x8b\x02\n" +
 	"\fOperationPut\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\fR\x05value\x12\x1c\n" +
 	"\tephemeral\x18\x03 \x01(\bR\tephemeral\x12(\n" +
 	"\rpartition_key\x18\x04 \x01(\tH\x00R\fpartitionKey\x88\x01\x01\x12,\n" +
-	"\x12sequence_key_delta\x18\x05 \x03(\x04R\x10sequenceKeyDeltaB\x10\n" +
-	"\x0e_partition_key\"r\n" +
+	"\x12sequence_key_delta\x18\x05 \x03(\x04R\x10sequenceKeyDelta\x123\n" +
+	"\x13expected_version_id\x18\x06 \x01(\x03H\x01R\x11expectedVersionId\x88\x01\x01B\x10\n" +
+	"\x0e_partition_keyB\x16\n" +
+	"\x14_expected_version_id\"r\n" +
 	"\fOperationGet\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12P\n" +
 	"\x0fcomparison_type\x18\x02 \x01(\x0e2'.io.oxia.okk.proto.v1.KeyComparisonTypeR\x0ecomparisonType\"E\n" +
@@ -1159,25 +1185,30 @@ const file_okk_proto_rawDesc = "" +
 	"\b_key_end\"0\n" +
 	"\x06Record\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"\xde\x02\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"\xb7\x03\n" +
 	"\tAssertion\x12.\n" +
 	"\x10eventually_empty\x18\x01 \x01(\bH\x00R\x0feventuallyEmpty\x88\x01\x01\x12(\n" +
 	"\rempty_records\x18\x02 \x01(\bH\x01R\femptyRecords\x88\x01\x01\x12(\n" +
 	"\rpartition_key\x18\x03 \x01(\tH\x02R\fpartitionKey\x88\x01\x01\x126\n" +
 	"\arecords\x18\x04 \x03(\v2\x1c.io.oxia.okk.proto.v1.RecordR\arecords\x12K\n" +
-	"\fnotification\x18\x05 \x01(\v2\".io.oxia.okk.proto.v1.NotificationH\x03R\fnotification\x88\x01\x01B\x13\n" +
+	"\fnotification\x18\x05 \x01(\v2\".io.oxia.okk.proto.v1.NotificationH\x03R\fnotification\x88\x01\x01\x12;\n" +
+	"\x17expect_version_conflict\x18\x06 \x01(\bH\x04R\x15expectVersionConflict\x88\x01\x01B\x13\n" +
 	"\x11_eventually_emptyB\x10\n" +
 	"\x0e_empty_recordsB\x10\n" +
 	"\x0e_partition_keyB\x0f\n" +
-	"\r_notification\"\x89\x01\n" +
+	"\r_notificationB\x1a\n" +
+	"\x18_expect_version_conflict\"\x89\x01\n" +
 	"\x0eExecuteCommand\x12\x1a\n" +
 	"\btestcase\x18\x01 \x01(\tR\btestcase\x12=\n" +
 	"\toperation\x18\x02 \x01(\v2\x1f.io.oxia.okk.proto.v1.OperationR\toperation\x12\x1c\n" +
-	"\tnamespace\x18\x03 \x01(\tR\tnamespace\"h\n" +
+	"\tnamespace\x18\x03 \x01(\tR\tnamespace\"\x9b\x01\n" +
 	"\x0fExecuteResponse\x124\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x1c.io.oxia.okk.proto.v1.StatusR\x06status\x12\x1f\n" +
 	"\vstatus_info\x18\x02 \x01(\tR\n" +
-	"statusInfo*M\n" +
+	"statusInfo\x12\"\n" +
+	"\n" +
+	"version_id\x18\x03 \x01(\x03H\x00R\tversionId\x88\x01\x01B\r\n" +
+	"\v_version_id*M\n" +
 	"\x11KeyComparisonType\x12\t\n" +
 	"\x05EQUAL\x10\x00\x12\t\n" +
 	"\x05FLOOR\x10\x01\x12\v\n" +
@@ -1274,6 +1305,7 @@ func file_okk_proto_init() {
 	file_okk_proto_msgTypes[8].OneofWrappers = []any{}
 	file_okk_proto_msgTypes[9].OneofWrappers = []any{}
 	file_okk_proto_msgTypes[11].OneofWrappers = []any{}
+	file_okk_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

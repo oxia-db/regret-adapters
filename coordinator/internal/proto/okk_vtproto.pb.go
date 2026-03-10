@@ -57,6 +57,10 @@ func (m *OperationPut) CloneVT() *OperationPut {
 		copy(tmpContainer, rhs)
 		r.SequenceKeyDelta = tmpContainer
 	}
+	if rhs := m.ExpectedVersionId; rhs != nil {
+		tmpVal := *rhs
+		r.ExpectedVersionId = &tmpVal
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -343,6 +347,10 @@ func (m *Assertion) CloneVT() *Assertion {
 		}
 		r.Records = tmpContainer
 	}
+	if rhs := m.ExpectVersionConflict; rhs != nil {
+		tmpVal := *rhs
+		r.ExpectVersionConflict = &tmpVal
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -380,6 +388,10 @@ func (m *ExecuteResponse) CloneVT() *ExecuteResponse {
 	r := new(ExecuteResponse)
 	r.Status = m.Status
 	r.StatusInfo = m.StatusInfo
+	if rhs := m.VersionId; rhs != nil {
+		tmpVal := *rhs
+		r.VersionId = &tmpVal
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -433,6 +445,9 @@ func (this *OperationPut) EqualVT(that *OperationPut) bool {
 		if vx != vy {
 			return false
 		}
+	}
+	if p, q := this.ExpectedVersionId, that.ExpectedVersionId; (p == nil && q != nil) || (p != nil && (q == nil || *p != *q)) {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -873,6 +888,9 @@ func (this *Assertion) EqualVT(that *Assertion) bool {
 	if !this.Notification.EqualVT(that.Notification) {
 		return false
 	}
+	if p, q := this.ExpectVersionConflict, that.ExpectVersionConflict; (p == nil && q != nil) || (p != nil && (q == nil || *p != *q)) {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -918,6 +936,9 @@ func (this *ExecuteResponse) EqualVT(that *ExecuteResponse) bool {
 		return false
 	}
 	if this.StatusInfo != that.StatusInfo {
+		return false
+	}
+	if p, q := this.VersionId, that.VersionId; (p == nil && q != nil) || (p != nil && (q == nil || *p != *q)) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -992,6 +1013,11 @@ func (m *OperationPut) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.ExpectedVersionId != nil {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(*m.ExpectedVersionId))
+		i--
+		dAtA[i] = 0x30
 	}
 	if len(m.SequenceKeyDelta) > 0 {
 		var pksize2 int
@@ -1669,6 +1695,16 @@ func (m *Assertion) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.ExpectVersionConflict != nil {
+		i--
+		if *m.ExpectVersionConflict {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.Notification != nil {
 		size, err := m.Notification.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -1808,6 +1844,11 @@ func (m *ExecuteResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.VersionId != nil {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(*m.VersionId))
+		i--
+		dAtA[i] = 0x18
+	}
 	if len(m.StatusInfo) > 0 {
 		i -= len(m.StatusInfo)
 		copy(dAtA[i:], m.StatusInfo)
@@ -1860,6 +1901,9 @@ func (m *OperationPut) SizeVT() (n int) {
 			l += protohelpers.SizeOfVarint(uint64(e))
 		}
 		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
+	}
+	if m.ExpectedVersionId != nil {
+		n += 1 + protohelpers.SizeOfVarint(uint64(*m.ExpectedVersionId))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2146,6 +2190,9 @@ func (m *Assertion) SizeVT() (n int) {
 		l = m.Notification.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.ExpectVersionConflict != nil {
+		n += 2
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2184,6 +2231,9 @@ func (m *ExecuteResponse) SizeVT() (n int) {
 	l = len(m.StatusInfo)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.VersionId != nil {
+		n += 1 + protohelpers.SizeOfVarint(uint64(*m.VersionId))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2464,6 +2514,26 @@ func (m *OperationPut) UnmarshalVT(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field SequenceKeyDelta", wireType)
 			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpectedVersionId", wireType)
+			}
+			var v int64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ExpectedVersionId = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -4017,6 +4087,27 @@ func (m *Assertion) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpectVersionConflict", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			b := bool(v != 0)
+			m.ExpectVersionConflict = &b
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -4270,6 +4361,26 @@ func (m *ExecuteResponse) UnmarshalVT(dAtA []byte) error {
 			}
 			m.StatusInfo = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VersionId", wireType)
+			}
+			var v int64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.VersionId = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -4572,6 +4683,26 @@ func (m *OperationPut) UnmarshalVTUnsafe(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field SequenceKeyDelta", wireType)
 			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpectedVersionId", wireType)
+			}
+			var v int64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ExpectedVersionId = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -6174,6 +6305,27 @@ func (m *Assertion) UnmarshalVTUnsafe(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpectVersionConflict", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			b := bool(v != 0)
+			m.ExpectVersionConflict = &b
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -6439,6 +6591,26 @@ func (m *ExecuteResponse) UnmarshalVTUnsafe(dAtA []byte) error {
 			}
 			m.StatusInfo = stringValue
 			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VersionId", wireType)
+			}
+			var v int64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.VersionId = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

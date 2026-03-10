@@ -38,4 +38,5 @@ const (
 	TestCaseTypeStreamingSequence        = "streamingSequence"
 	TestCaseTypeMetadataWithEphemeral    = "metadataWithEphemeral"
 	TestCaseTypeMetadataWithNotification = "metadataWithNotification"
+	TestCaseTypeConditionalPut           = "conditionalPut"
 )

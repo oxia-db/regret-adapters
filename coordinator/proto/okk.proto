@@ -15,6 +15,7 @@ message OperationPut {
   bool ephemeral = 3;
   optional string partition_key = 4;
   repeated uint64 sequence_key_delta = 5;
+  optional int64 expected_version_id = 6;
 }
 
 enum KeyComparisonType {
@@ -92,6 +93,7 @@ message Assertion {
   optional string partition_key = 3;
   repeated Record records = 4;
   optional Notification notification = 5;
+  optional bool expect_version_conflict = 6;
 }
 
 message ExecuteCommand {
@@ -110,6 +112,7 @@ enum Status {
 message ExecuteResponse {
   Status status = 1;
   string status_info = 2;
+  optional int64 version_id = 3;
 }
 
 service Okk {
