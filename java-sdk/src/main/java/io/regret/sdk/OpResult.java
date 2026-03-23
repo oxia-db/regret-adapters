@@ -23,8 +23,15 @@ public record OpResult(String opId, String opType, String status, byte[] payload
     }
 
     public static OpResult get(String opId, String value, long versionId) {
+        return get(opId, null, value, versionId);
+    }
+
+    public static OpResult get(String opId, String key, String value, long versionId) {
         try {
             ObjectNode node = MAPPER.createObjectNode();
+            if (key != null) {
+                node.put("key", key);
+            }
             node.put("value", value);
             node.put("version_id", versionId);
             return new OpResult(opId, "get", "ok", MAPPER.writeValueAsBytes(node), null);

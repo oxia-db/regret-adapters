@@ -177,6 +177,7 @@ public class OxiaKVAdapter implements Adapter {
             return OpResult.notFound(op.opId(), op.opType().value());
         } else {
             return OpResult.get(op.opId(),
+                    res.key(),
                     new String(res.value(), StandardCharsets.UTF_8),
                     res.version().versionId());
         }
