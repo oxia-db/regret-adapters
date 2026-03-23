@@ -37,13 +37,17 @@ on:
       upgrade_scenario:
         type: string
         default: 'oxia-upgrade-test'
+      studio_url:
+        type: string
+        default: ''
+        description: 'Regret Studio URL for result links'
     secrets:
       REGRET_API_URL:
         required: true
       REGRET_PASSWORD:
         required: true
       REGRET_STUDIO_URL:
-        required: true
+        required: false
     outputs:
       hyp_basic_kv:
         value: ${{ jobs.setup.outputs.hyp_basic_kv }}
@@ -159,7 +163,7 @@ jobs:
     timeout-minutes: 240
     env:
       API: ${{ secrets.REGRET_API_URL }}
-      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
+      STUDIO: ${{ inputs.studio_url || secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_basic_kv }}
       RUN_ID: ${{ needs.setup.outputs.run_basic_kv }}
     steps:
@@ -190,7 +194,7 @@ jobs:
     timeout-minutes: 240
     env:
       API: ${{ secrets.REGRET_API_URL }}
-      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
+      STUDIO: ${{ inputs.studio_url || secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_cas }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_cas }}
     steps:
@@ -221,7 +225,7 @@ jobs:
     timeout-minutes: 240
     env:
       API: ${{ secrets.REGRET_API_URL }}
-      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
+      STUDIO: ${{ inputs.studio_url || secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_ephemeral }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_ephemeral }}
     steps:
@@ -252,7 +256,7 @@ jobs:
     timeout-minutes: 240
     env:
       API: ${{ secrets.REGRET_API_URL }}
-      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
+      STUDIO: ${{ inputs.studio_url || secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_secondary_index }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_secondary_index }}
     steps:
@@ -283,7 +287,7 @@ jobs:
     timeout-minutes: 240
     env:
       API: ${{ secrets.REGRET_API_URL }}
-      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
+      STUDIO: ${{ inputs.studio_url || secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_sequence }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_sequence }}
     steps:
