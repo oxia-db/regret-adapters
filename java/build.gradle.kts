@@ -18,11 +18,18 @@ tasks.withType<JavaCompile> {
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://jitpack.io") }
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/regret-io/regret")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user") as String? ?: ""
+            password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.key") as String? ?: ""
+        }
+    }
 }
 
 dependencies {
-    implementation("com.github.regret-io.regret:sdk-java:main-SNAPSHOT")
+    implementation("io.regret:regret-adapter-sdk-java:0.1.0")
     implementation("io.streamnative.oxia:oxia-client:0.4.11")
     implementation("org.slf4j:slf4j-simple:2.0.16")
 }
