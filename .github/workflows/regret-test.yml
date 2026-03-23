@@ -38,11 +38,11 @@ on:
         type: string
         default: 'oxia-upgrade-test'
     secrets:
-      regret_api:
+      REGRET_API_URL:
         required: true
-      regret_password:
+      REGRET_PASSWORD:
         required: true
-      regret_studio:
+      REGRET_STUDIO_URL:
         required: true
     outputs:
       hyp_basic_kv:
@@ -71,8 +71,8 @@ jobs:
     name: Setup Regret Tests
     runs-on: ubuntu-latest
     env:
-      API: ${{ secrets.regret_api }}
-      AUTH: "admin:${{ secrets.regret_password }}"
+      API: ${{ secrets.REGRET_API_URL }}
+      AUTH: "admin:${{ secrets.REGRET_PASSWORD }}"
     outputs:
       hyp_basic_kv: ${{ steps.create.outputs.hyp_basic_kv }}
       hyp_kv_cas: ${{ steps.create.outputs.hyp_kv_cas }}
@@ -143,8 +143,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      API: ${{ secrets.regret_api }}
-      STUDIO: ${{ secrets.regret_studio }}
+      API: ${{ secrets.REGRET_API_URL }}
+      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_basic_kv }}
       RUN_ID: ${{ needs.setup.outputs.run_basic_kv }}
     steps:
@@ -174,8 +174,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      API: ${{ secrets.regret_api }}
-      STUDIO: ${{ secrets.regret_studio }}
+      API: ${{ secrets.REGRET_API_URL }}
+      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_cas }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_cas }}
     steps:
@@ -205,8 +205,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      API: ${{ secrets.regret_api }}
-      STUDIO: ${{ secrets.regret_studio }}
+      API: ${{ secrets.REGRET_API_URL }}
+      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_ephemeral }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_ephemeral }}
     steps:
@@ -236,8 +236,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      API: ${{ secrets.regret_api }}
-      STUDIO: ${{ secrets.regret_studio }}
+      API: ${{ secrets.REGRET_API_URL }}
+      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_secondary_index }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_secondary_index }}
     steps:
@@ -267,8 +267,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      API: ${{ secrets.regret_api }}
-      STUDIO: ${{ secrets.regret_studio }}
+      API: ${{ secrets.REGRET_API_URL }}
+      STUDIO: ${{ secrets.REGRET_STUDIO_URL }}
       HYP_ID: ${{ needs.setup.outputs.hyp_kv_sequence }}
       RUN_ID: ${{ needs.setup.outputs.run_kv_sequence }}
     steps:
