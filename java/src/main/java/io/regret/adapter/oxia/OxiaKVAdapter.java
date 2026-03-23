@@ -32,6 +32,7 @@ public class OxiaKVAdapter implements Adapter {
     private SyncOxiaClient client;
     private final ConcurrentLinkedQueue<Notification> notificationBuffer = new ConcurrentLinkedQueue<>();
     private boolean watching = false;
+    private String watchPrefix = "";
 
     public OxiaKVAdapter() {
         this.oxiaAddr = System.getenv("OXIA_ADDR");
@@ -127,8 +128,9 @@ public class OxiaKVAdapter implements Adapter {
                 }
                 case WATCH_START -> {
                     var p = GetPayload.fromBytes(op.payload());
+                    watchPrefix = p.key();
                     startWatching();
-                    LOG.info("Watch started for prefix: {}", p.key());
+                    LOG.info("Watch started for prefix: {}", watchPrefix);
                     yield OpResult.ok(op.opId(), OpType.WATCH_START.value());
                 }
                 case SESSION_RESTART -> {
@@ -201,9 +203,20 @@ public class OxiaKVAdapter implements Adapter {
 
     private void startWatching() {
         if (!watching) {
+            final String prefix = watchPrefix;
             client.notifications(notification -> {
-                LOG.debug("Notification: {}", notification);
-                notificationBuffer.add(notification);
+                // Filter by prefix — only buffer notifications for our keys
+                String key = notification.key();
+                boolean matches = key != null && key.startsWith(prefix);
+                if (!matches && notification instanceof Notification.KeyRangeDelete kr) {
+                    matches = kr.startKeyInclusive().startsWith(prefix);
+                }
+                if (matches) {
+                    LOG.debug("Notification (matched): {}", notification);
+                    notificationBuffer.add(notification);
+                } else {
+                    LOG.trace("Notification (filtered): {}", notification);
+                }
             });
             watching = true;
         }
