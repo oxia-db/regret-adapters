@@ -27,5 +27,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: regretio/adapter-oxia-java:latest
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            GITHUB_ACTOR=${{ github.actor }}
           cache-from: type=gha,scope=java
           cache-to: type=gha,scope=java,mode=max
