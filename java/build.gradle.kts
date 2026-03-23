@@ -16,8 +16,13 @@ tasks.withType<JavaCompile> {
     options.compilerArgs.add("-parameters")
 }
 
+repositories {
+    mavenCentral()
+    maven { url = uri("https://jitpack.io") }
+}
+
 dependencies {
-    implementation(project(":java-sdk"))
+    implementation("com.github.regret-io.regret:sdk-java:main-SNAPSHOT")
     implementation("io.streamnative.oxia:oxia-client:0.4.11")
     implementation("org.slf4j:slf4j-simple:2.0.16")
 }

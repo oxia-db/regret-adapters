@@ -1,8 +1,6 @@
 FROM gradle:8.12-jdk21 AS builder
 WORKDIR /build
 COPY settings.gradle.kts build.gradle.kts ./
-COPY regret.proto ./
-COPY java-sdk/ java-sdk/
 COPY java/ java/
 RUN gradle :java:shadowJar --no-daemon
 
