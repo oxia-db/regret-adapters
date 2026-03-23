@@ -89,27 +89,41 @@ jobs:
         run: |
           curl -sf "${API}/health" || { echo "Regret API not reachable"; exit 1; }
 
-      - name: Create hypotheses and start runs
+      - name: Find or create hypotheses, start runs
         id: create
         run: |
           FIRST_ID=""
+          ALL_HYPOTHESES=$(curl -sf "${API}/api/hypothesis" | jq -r '.items')
+
           for gen in basic-kv kv-cas kv-ephemeral kv-secondary-index kv-sequence; do
             SAFE_GEN=$(echo "$gen" | tr '-' '_')
-            echo "Creating: ci-${gen}..."
-            RESULT=$(curl -sf -u "${AUTH}" "${API}/api/hypothesis" \
-              -X POST -H 'Content-Type: application/json' \
-              -d "{
-                \"name\": \"ci-${gen}-${GITHUB_RUN_ID}\",
-                \"generator\": \"${gen}\",
-                \"adapter\": \"oxia\",
-                \"duration\": \"${{ inputs.duration }}\",
-                \"checkpoint_every\": \"${{ inputs.checkpoint_every }}\",
-                \"tolerance\": {\"structural\":[{\"field\":\"version_id\",\"ignore\":true}]}
-              }")
-            HYP_ID=$(echo "$RESULT" | jq -r .id)
+            TEMPLATE_NAME="ci-${gen}"
+
+            # Check if template already exists
+            HYP_ID=$(echo "$ALL_HYPOTHESES" | jq -r ".[] | select(.name==\"${TEMPLATE_NAME}\") | .id" | head -1)
+
+            if [ -z "$HYP_ID" ] || [ "$HYP_ID" = "null" ]; then
+              echo "Creating template: ${TEMPLATE_NAME}"
+              RESULT=$(curl -sf -u "${AUTH}" "${API}/api/hypothesis" \
+                -X POST -H 'Content-Type: application/json' \
+                -d "{
+                  \"name\": \"${TEMPLATE_NAME}\",
+                  \"generator\": \"${gen}\",
+                  \"adapter\": \"oxia\",
+                  \"duration\": \"${{ inputs.duration }}\",
+                  \"checkpoint_every\": \"${{ inputs.checkpoint_every }}\",
+                  \"tolerance\": {\"structural\":[{\"field\":\"version_id\",\"ignore\":true}]}
+                }")
+              HYP_ID=$(echo "$RESULT" | jq -r .id)
+            else
+              echo "Reusing template: ${TEMPLATE_NAME} (${HYP_ID})"
+            fi
+
+            # Start a new run
             RUN_RESULT=$(curl -sf -u "${AUTH}" "${API}/api/hypothesis/${HYP_ID}/run" \
               -X POST -H 'Content-Type: application/json' -d '{}')
             RUN_ID=$(echo "$RUN_RESULT" | jq -r .run_id)
+
             echo "hyp_${SAFE_GEN}=${HYP_ID}" >> $GITHUB_OUTPUT
             echo "run_${SAFE_GEN}=${RUN_ID}" >> $GITHUB_OUTPUT
             echo "  ${gen}: hyp=${HYP_ID} run=${RUN_ID}"
