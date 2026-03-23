@@ -3,6 +3,7 @@ package io.regret.adapter.oxia;
 import io.regret.sdk.*;
 import io.regret.sdk.OpType;
 import io.regret.sdk.payload.*;
+import io.oxia.client.api.Notification;
 import io.oxia.client.api.OxiaClientBuilder;
 import io.oxia.client.api.GetResult;
 import io.oxia.client.api.SyncOxiaClient;
@@ -11,35 +12,46 @@ import io.oxia.client.api.options.ListOption;
 import io.oxia.client.api.options.PutOption;
 import io.oxia.client.api.options.RangeScanOption;
 import io.oxia.client.api.exceptions.UnexpectedVersionIdException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class OxiaKVAdapter implements Adapter {
 
     private static final Logger LOG = LoggerFactory.getLogger(OxiaKVAdapter.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final SyncOxiaClient client;
+    private final String oxiaAddr;
+    private final String namespace;
+    private SyncOxiaClient client;
+    private final ConcurrentLinkedQueue<Notification> notificationBuffer = new ConcurrentLinkedQueue<>();
+    private boolean watching = false;
 
     public OxiaKVAdapter() {
-        String oxiaAddr = System.getenv("OXIA_ADDR");
-        String namespace = System.getenv("OXIA_NAMESPACE");
+        this.oxiaAddr = System.getenv("OXIA_ADDR");
+        this.namespace = System.getenv("OXIA_NAMESPACE");
 
         if (oxiaAddr == null) {
             throw new IllegalStateException("OXIA_ADDR env var is required");
         }
 
         LOG.info("Connecting to Oxia at {} namespace={}", oxiaAddr, namespace);
+        this.client = createClient();
+    }
 
+    private SyncOxiaClient createClient() {
         var builder = OxiaClientBuilder.create(oxiaAddr);
         if (namespace != null && !namespace.isEmpty()) {
             builder.namespace(namespace);
         }
         try {
-            this.client = builder.syncClient();
+            return builder.syncClient();
         } catch (Exception e) {
             throw new RuntimeException("Failed to create Oxia client", e);
         }
@@ -47,8 +59,7 @@ public class OxiaKVAdapter implements Adapter {
 
     @Override
     public OpResult executeOp(Operation op) {
-        LOG.debug("  op={} id={} payload={}", op.opType(), op.opId(),
-                op.payload() != null ? new String(op.payload(), StandardCharsets.UTF_8) : "null");
+        LOG.debug("  op={} id={}", op.opType(), op.opId());
         try {
             return switch (op.opType()) {
                 case PUT -> {
@@ -110,9 +121,27 @@ public class OxiaKVAdapter implements Adapter {
                 }
                 case EPHEMERAL_PUT -> {
                     var p = EphemeralPutPayload.fromBytes(op.payload());
-                    client.put(p.key(), p.value().getBytes(StandardCharsets.UTF_8),
+                    var putResult = client.put(p.key(), p.value().getBytes(StandardCharsets.UTF_8),
                             Set.of(PutOption.AsEphemeralRecord));
-                    yield OpResult.ok(op.opId(), OpType.EPHEMERAL_PUT.value());
+                    yield OpResult.okWithVersion(op.opId(), OpType.EPHEMERAL_PUT.value(), putResult.version().versionId());
+                }
+                case WATCH_START -> {
+                    var p = GetPayload.fromBytes(op.payload());
+                    startWatching();
+                    LOG.info("Watch started for prefix: {}", p.key());
+                    yield OpResult.ok(op.opId(), OpType.WATCH_START.value());
+                }
+                case SESSION_RESTART -> {
+                    LOG.info("Session restart requested");
+                    watching = false;
+                    try { client.close(); } catch (Exception e) { LOG.warn("Error closing client", e); }
+                    client = createClient();
+                    startWatching();
+                    LOG.info("Session restarted, new client created");
+                    yield OpResult.ok(op.opId(), OpType.SESSION_RESTART.value());
+                }
+                case GET_NOTIFICATIONS -> {
+                    yield buildNotificationsResult(op.opId());
                 }
                 case INDEXED_PUT -> {
                     var p = IndexedPutPayload.fromBytes(op.payload());
@@ -167,6 +196,56 @@ public class OxiaKVAdapter implements Adapter {
             };
         } catch (Exception e) {
             return OpResult.error(op.opId(), op.opType().value(), e.getMessage());
+        }
+    }
+
+    private void startWatching() {
+        if (!watching) {
+            client.notifications(notification -> {
+                LOG.debug("Notification: {}", notification);
+                notificationBuffer.add(notification);
+            });
+            watching = true;
+        }
+    }
+
+    private OpResult buildNotificationsResult(String opId) {
+        try {
+            ObjectNode node = MAPPER.createObjectNode();
+            ArrayNode arr = node.putArray("notifications");
+
+            Notification n;
+            while ((n = notificationBuffer.poll()) != null) {
+                ObjectNode entry = arr.addObject();
+                switch (n) {
+                    case Notification.KeyCreated kc -> {
+                        entry.put("type", "KEY_CREATED");
+                        entry.put("key", kc.key());
+                    }
+                    case Notification.KeyModified km -> {
+                        entry.put("type", "KEY_MODIFIED");
+                        entry.put("key", km.key());
+                    }
+                    case Notification.KeyDeleted kd -> {
+                        entry.put("type", "KEY_DELETED");
+                        entry.put("key", kd.key());
+                    }
+                    case Notification.KeyRangeDelete kr -> {
+                        entry.put("type", "KEY_RANGE_DELETED");
+                        entry.put("key_start", kr.startKeyInclusive());
+                        entry.put("key_end", kr.endKeyExclusive());
+                    }
+                    default -> {
+                        entry.put("type", "UNKNOWN");
+                        entry.put("key", n.key());
+                    }
+                }
+            }
+
+            return new OpResult(opId, "get_notifications", "ok",
+                    MAPPER.writeValueAsBytes(node), null);
+        } catch (Exception e) {
+            return OpResult.error(opId, "get_notifications", e.getMessage());
         }
     }
 
