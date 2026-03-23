@@ -29,7 +29,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.regret:regret-adapter-sdk-java:0.1.0")
+    implementation("io.regret:regret-adapter-sdk-java:0.2.0")
     implementation("io.streamnative.oxia:oxia-client:0.4.11")
     implementation("org.slf4j:slf4j-simple:2.0.16")
 }
