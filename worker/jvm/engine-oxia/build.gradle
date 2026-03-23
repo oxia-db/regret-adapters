@@ -1,8 +1,0 @@
-
-
-
-dependencies {
-    implementation "io.github.oxia-db:oxia-client:0.7.2"
-    implementation "io.github.oxia-db:oxia-client-api:0.7.2"
-    implementation project(":engine")
-}

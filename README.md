@@ -1,38 +1,44 @@
-# OKK
+# Regret Adapters for Oxia
 
-OKK is a testing framework designed to verify the correctness in key-value storage and index engine systems.
+Adapters that bridge [Regret](https://github.com/regret-io/regret) correctness testing to [Oxia](https://github.com/oxia-db/oxia) and its client SDKs.
 
-## Prerequisites
+## Adapters
 
-Before you begin, ensure you have the following installed:
+| Adapter | Language | Image | Status |
+|---------|----------|-------|--------|
+| `java/` | Java 21 | `regretio/adapter-oxia-java` | Active |
 
-- Kubernetes Cluster (or Kind)
-- Helm
+## Usage
 
-## Quick Start
+Each adapter implements the Regret gRPC `AdapterService` interface and translates operations to the target system's client SDK.
 
-Follow these steps to add the Helm repository and install a release.
+### Java Adapter
 
-
-1. Add the Helm repository:
-
-```
-helm repo add okk https://oxia-db.github.io/okk/
-helm repo update
+```bash
+docker run -e OXIA_ADDR=oxia:6648 -e OXIA_NAMESPACE=default -p 9090:9090 regretio/adapter-oxia-java:latest
 ```
 
-2. Install the chart
+### Reusable CI Workflow
 
+The `regret-test.yml` workflow can be called from any repo to run Regret correctness tests:
+
+```yaml
+jobs:
+  regret:
+    uses: oxia-db/regret-adapters/.github/workflows/regret-test.yml@main
+    with:
+      candidate_image: "oxia/oxia:v0.16.2-rc0"
+      stable_image: "oxia/oxia:latest"
+      duration: "3h"
+    secrets:
+      regret_api: ${{ secrets.REGRET_API_URL }}
+      regret_password: ${{ secrets.REGRET_PASSWORD }}
+      regret_studio: ${{ secrets.REGRET_STUDIO_URL }}
 ```
-helm install okk okk/okk --namespace okk --create-namespace
-```
 
-3. Run `TestCase` by examples
+## Adding a New Adapter
 
-We provide some commonly used test cases you can apply directly from [example](./examples) dir.
-
-## Configuration
-
-You can customize your deployment by using the --set flag or by providing a custom values.yaml file.
-
-To see all available configuration options, refer to the [values.yaml](./charts/okk/values.yaml) file in the chart's repository.
+1. Create a directory (e.g. `go/`) with the adapter implementation
+2. Use the `java-sdk/` as reference for the gRPC interface
+3. Add a Dockerfile
+4. Add a build job to `.github/workflows/build.yml`
