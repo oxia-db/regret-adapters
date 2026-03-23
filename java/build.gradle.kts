@@ -29,8 +29,8 @@ repositories {
 }
 
 dependencies {
-    implementation("io.regret:regret-adapter-sdk-java:0.2.0")
-    implementation("io.streamnative.oxia:oxia-client:0.4.11")
+    implementation(project(":java-sdk"))
+    implementation("io.github.oxia-db:oxia-client:0.7.4")
     implementation("org.slf4j:slf4j-simple:2.0.16")
 }
 
