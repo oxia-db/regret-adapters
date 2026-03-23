@@ -14,6 +14,16 @@ public record OpResult(String opId, String opType, String status, byte[] payload
         return new OpResult(opId, opType, "ok", null, null);
     }
 
+    public static OpResult okWithVersion(String opId, String opType, long versionId) {
+        try {
+            ObjectNode node = MAPPER.createObjectNode();
+            node.put("version_id", versionId);
+            return new OpResult(opId, opType, "ok", MAPPER.writeValueAsBytes(node), null);
+        } catch (Exception e) {
+            return ok(opId, opType);
+        }
+    }
+
     public static OpResult notFound(String opId, String opType) {
         return new OpResult(opId, opType, "not_found", null, null);
     }

@@ -53,8 +53,8 @@ public class OxiaKVAdapter implements Adapter {
             return switch (op.opType()) {
                 case PUT -> {
                     var p = PutPayload.fromBytes(op.payload());
-                    client.put(p.key(), p.value().getBytes(StandardCharsets.UTF_8));
-                    yield OpResult.ok(op.opId(), OpType.PUT.value());
+                    var putResult = client.put(p.key(), p.value().getBytes(StandardCharsets.UTF_8));
+                    yield OpResult.okWithVersion(op.opId(), OpType.PUT.value(), putResult.version().versionId());
                 }
                 case DELETE -> {
                     var p = DeletePayload.fromBytes(op.payload());
@@ -70,9 +70,9 @@ public class OxiaKVAdapter implements Adapter {
                 case CAS -> {
                     var p = CasPayload.fromBytes(op.payload());
                     try {
-                        client.put(p.key(), p.newValue().getBytes(StandardCharsets.UTF_8),
+                        var putResult = client.put(p.key(), p.newValue().getBytes(StandardCharsets.UTF_8),
                                 Set.of(PutOption.IfVersionIdEquals(p.expectedVersionId())));
-                        yield OpResult.ok(op.opId(), OpType.CAS.value());
+                        yield OpResult.okWithVersion(op.opId(), OpType.CAS.value(), putResult.version().versionId());
                     } catch (UnexpectedVersionIdException e) {
                         yield OpResult.versionMismatch(op.opId(), OpType.CAS.value());
                     }
