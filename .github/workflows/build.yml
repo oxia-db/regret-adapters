@@ -26,7 +26,7 @@ jobs:
           file: java/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: regretio/adapter-oxia-java:latest
+          tags: oxia/regret-adapter-java:latest
           build-args: |
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
             GITHUB_ACTOR=${{ github.actor }}
