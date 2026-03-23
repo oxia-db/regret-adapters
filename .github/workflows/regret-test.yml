@@ -93,6 +93,19 @@ jobs:
         run: |
           curl -sf "${API}/health" || { echo "Regret API not reachable"; exit 1; }
 
+      - name: Ensure adapter is registered
+        run: |
+          EXISTING=$(curl -sf "${API}/api/adapters" | jq -r '.items[] | select(.name=="oxia") | .id')
+          if [ -z "$EXISTING" ] || [ "$EXISTING" = "null" ]; then
+            echo "Registering oxia adapter..."
+            curl -sf -u "${AUTH}" "${API}/api/adapters" \
+              -X POST -H 'Content-Type: application/json' \
+              -d '{"name":"oxia","image":"regretio/adapter-oxia-java:latest","env":{}}'
+            echo "Adapter registered."
+          else
+            echo "Adapter already registered: ${EXISTING}"
+          fi
+
       - name: Find or create hypotheses, start runs
         id: create
         run: |
