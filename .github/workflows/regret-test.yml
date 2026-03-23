@@ -86,7 +86,8 @@ jobs:
       run_kv_sequence: ${{ steps.create.outputs.run_kv_sequence }}
     steps:
       - name: Validate
-        run: curl -sf "${API}/health" || { echo "ERROR: Regret API not reachable"; exit 1; }
+        run: |
+          curl -sf "${API}/health" || { echo "Regret API not reachable"; exit 1; }
 
       - name: Create hypotheses and start runs
         id: create
