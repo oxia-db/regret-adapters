@@ -29,9 +29,9 @@ public class OxiaKVAdapter implements Adapter {
 
     private final String oxiaAddr;
     private final String namespace;
-    private SyncOxiaClient client;
+    private SyncOxiaClient client;           // data client — gets restarted on session_restart
+    private SyncOxiaClient notificationClient; // long-lived — only for notifications
     private final ConcurrentLinkedQueue<Notification> notificationBuffer = new ConcurrentLinkedQueue<>();
-    private boolean watching = false;
     private String watchPrefix = "";
 
     public OxiaKVAdapter() {
@@ -44,6 +44,7 @@ public class OxiaKVAdapter implements Adapter {
 
         LOG.info("Connecting to Oxia at {} namespace={}", oxiaAddr, namespace);
         this.client = createClient();
+        this.notificationClient = createClient();
     }
 
     private SyncOxiaClient createClient() {
@@ -129,17 +130,29 @@ public class OxiaKVAdapter implements Adapter {
                 case WATCH_START -> {
                     var p = GetPayload.fromBytes(op.payload());
                     watchPrefix = p.key();
-                    startWatching();
-                    LOG.info("Watch started for prefix: {}", watchPrefix);
+                    // Subscribe on the long-lived notification client (only once)
+                    final String prefix = watchPrefix;
+                    notificationClient.notifications(notification -> {
+                        String key = notification.key();
+                        LOG.info("Notification received: type={} key={}", notification.getClass().getSimpleName(), key);
+                        boolean matches = key != null && key.startsWith(prefix);
+                        if (!matches && notification instanceof Notification.KeyRangeDelete kr) {
+                            matches = kr.startKeyInclusive().startsWith(prefix);
+                        }
+                        if (matches) {
+                            notificationBuffer.add(notification);
+                        }
+                    });
+                    // Wait for notification stream to establish
+                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                    LOG.info("Watch started on notification client for prefix: {}", watchPrefix);
                     yield OpResult.ok(op.opId(), OpType.WATCH_START.value());
                 }
                 case SESSION_RESTART -> {
-                    LOG.info("Session restart requested");
-                    watching = false;
-                    try { client.close(); } catch (Exception e) { LOG.warn("Error closing client", e); }
+                    LOG.info("Session restart: closing data client only");
+                    try { client.close(); } catch (Exception e) { LOG.warn("Error closing data client", e); }
                     client = createClient();
-                    startWatching();
-                    LOG.info("Session restarted, new client created");
+                    LOG.info("Session restarted, new data client created");
                     yield OpResult.ok(op.opId(), OpType.SESSION_RESTART.value());
                 }
                 case GET_NOTIFICATIONS -> {
@@ -198,27 +211,6 @@ public class OxiaKVAdapter implements Adapter {
             };
         } catch (Exception e) {
             return OpResult.error(op.opId(), op.opType().value(), e.getMessage());
-        }
-    }
-
-    private void startWatching() {
-        if (!watching) {
-            final String prefix = watchPrefix;
-            client.notifications(notification -> {
-                // Filter by prefix — only buffer notifications for our keys
-                String key = notification.key();
-                boolean matches = key != null && key.startsWith(prefix);
-                if (!matches && notification instanceof Notification.KeyRangeDelete kr) {
-                    matches = kr.startKeyInclusive().startsWith(prefix);
-                }
-                if (matches) {
-                    LOG.debug("Notification (matched): {}", notification);
-                    notificationBuffer.add(notification);
-                } else {
-                    LOG.trace("Notification (filtered): {}", notification);
-                }
-            });
-            watching = true;
         }
     }
 
