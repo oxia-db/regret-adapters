@@ -201,10 +201,11 @@ public class OxiaKVAdapter implements Adapter {
                 }
                 case SEQUENCE_PUT -> {
                     var p = SequencePutPayload.fromBytes(op.payload());
-                    client.put(p.prefix(), p.value().getBytes(StandardCharsets.UTF_8),
+                    var putResult = client.put(p.prefix(), p.value().getBytes(StandardCharsets.UTF_8),
                             Set.of(PutOption.SequenceKeysDeltas(List.of(p.delta())),
                                     PutOption.PartitionKey(p.prefix())));
-                    yield OpResult.ok(op.opId(), OpType.SEQUENCE_PUT.value());
+                    yield OpResult.okWithKeyAndVersion(op.opId(), OpType.SEQUENCE_PUT.value(),
+                            putResult.key(), putResult.version().versionId());
                 }
                 default -> OpResult.error(op.opId(), op.opType().value(),
                         "unknown op type: " + op.opType());

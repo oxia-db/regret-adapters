@@ -79,6 +79,17 @@ public record OpResult(String opId, String opType, String status, byte[] payload
         }
     }
 
+    public static OpResult okWithKeyAndVersion(String opId, String opType, String key, long versionId) {
+        try {
+            ObjectNode node = MAPPER.createObjectNode();
+            node.put("key", key);
+            node.put("version_id", versionId);
+            return new OpResult(opId, opType, "ok", MAPPER.writeValueAsBytes(node), null);
+        } catch (Exception e) {
+            return ok(opId, opType);
+        }
+    }
+
     public static OpResult error(String opId, String opType, String message) {
         return new OpResult(opId, opType, "error", null, message);
     }
